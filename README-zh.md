@@ -268,6 +268,7 @@ npx cross-env DEFAULT_SEARCH_ENGINE=duckduckgo ENABLE_CORS=true open-websearch
 | `PROXY_URL` | `http://127.0.0.1:7890` | 任何有效URL | 代理服务器URL                             |
 | `FETCH_WEB_INSECURE_TLS` | `false` | `true`, `false` | 仅对 `fetchWebContent` 的请求路径关闭 TLS 校验，不影响 Playwright 浏览器导航。只建议在证书链异常时临时使用 |
 | `MODE` | `both`                  | `both`, `http`, `stdio` | 服务器模式：同时支持HTTP+STDIO、仅HTTP或仅STDIO    |
+| `MCP_HTTP_HOST` | `0.0.0.0` | 监听地址 | 在同机反向代理后可设为 `127.0.0.1`。 |
 | `PORT` | `3000`                  | 1-65535 | 服务器端口                                |
 | `ALLOWED_SEARCH_ENGINES` | 空（全部可用） | 逗号分隔的引擎名称 | 限制可使用的搜索引擎，如默认搜索引擎不在范围，则默认第一个为默认搜索引擎 |
 | `SEARCH_MODE` | `auto` | `request`, `auto`, `playwright` | 搜索策略，当前仅对 Bing 生效：强制 HTTP 请求模式（`request`）、强制 Playwright 模式（`playwright`）、或允许 Agent 选择模式（`auto`，默认）。强制模式不向 Agent 暴露 `searchMode` 参数。`auto` 模式下服务端会检查 Playwright 是否真实可用（客户端模块可真实加载，本地启动时还需浏览器二进制真实存在：显式 `PLAYWRIGHT_EXECUTABLE_PATH`、捆绑浏览器或系统 Chrome/Edge）；可用时搜索工具暴露 `searchMode` 参数，并引导 Agent 保持默认 `auto`、仅在 request 结果失败或异常时再重试 `playwright`，不可用时按强制请求模式处理。强制 `playwright` 但不可用时，搜索返回 `browser_unavailable` 错误 |
@@ -566,11 +567,13 @@ docker run -d --name web-search -p 3000:3000 -e ENABLE_CORS=true -e CORS_ORIGIN=
 
 ## 使用说明
 
-服务器提供六个工具：`search`、`fetchLinuxDoArticle`、`fetchCsdnArticle`、`fetchGithubReadme`、`fetchJuejinArticle` 和 `fetchWebContent`。
+服务器默认提供七个工具：`search`、`fetchLinuxDoArticle`、`fetchCsdnArticle`、`fetchGithubReadme`、`fetchJuejinArticle`、`fetchWebContent` 和 `readWebDocument`。
 
 本地 daemon HTTP API（`serve`、`status`、`GET /health`、`POST /search`、`POST /fetch-*`）请参考 [docs/http-api.md](docs/http-api.md)。
 
 ### search工具使用说明
+
+选用多个引擎时，结果按引擎轮流排列，同一完整 URL 只出现一次。每条结果的 `engines` 列出命中的来源。`limit` 限制去重后的总数，其他引擎的候选可补足普通请求失败或空结果留下的名额。
 
 ```typescript
 {
@@ -720,6 +723,8 @@ use_mcp_tool({
   "includeLinks": boolean // 可选：保留 Readability 输出中的链接
 }
 ```
+
+通过 MCP 抓取长网页时，截断预览会附上 `documentId`、`readTool` 和 `nextOffset`。在同一个 MCP 会话调用返回的工具名（默认 `readWebDocument`），传入文档标识和偏移量即可续读。也可以传 `keyword` 定位区分大小写的原文并返回上下文。两种操作都使用首次抓取的正文。文档保留最多 30 分钟，达到容量上限时会提前移出。过期或会话重连后需要重新抓取。
 
 读技术文档时可以传 `format: "markdown"`，正文中的标题、列表、代码块、普通表格和链接会保留在 `content` 中。命令行写作 `open-websearch fetch-web <url> --format markdown`。原生 Markdown 文件沿用现有读取方式。
 

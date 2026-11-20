@@ -179,6 +179,7 @@ npx cross-env DEFAULT_SEARCH_ENGINE=duckduckgo ENABLE_CORS=true open-websearch
 | `FAKE_IP_CIDRS` | empty | Comma-separated CIDR list | Treat DNS answers in these CIDRs as synthetic fake-IP results and do not block them as private-network DNS answers. Literal private/local targets and other private-network DNS answers remain blocked |
 | `FETCH_WEB_INSECURE_TLS` | `false` | `true`, `false` | Disable TLS verification only for the request leg of `fetchWebContent`; it does not affect Playwright browser navigation. Use only for broken certificate chains |
 | `MODE` | `both`                  | `both`, `http`, `stdio` | Server mode: both HTTP+STDIO, HTTP only, or STDIO only |
+| `MCP_HTTP_HOST` | `0.0.0.0` | Listen address | Use `127.0.0.1` behind a reverse proxy on the same host. |
 | `PORT` | `3000`                  | 1-65535 | Server port |
 | `ALLOWED_SEARCH_ENGINES` | empty (all available) | Comma-separated engine names | Limit which search engines can be used; if the default engine is not in this list, the first allowed engine becomes the default |
 | `SEARCH_MODE` | `auto` | `request`, `auto`, `playwright` | Search strategy. Currently only affects Bing: force HTTP request mode (`request`), force Playwright mode (`playwright`), or let the agent choose (`auto`, default). Forced modes never expose a `searchMode` override to the agent. In `auto` mode the server checks whether Playwright is really usable (the client module can actually be loaded, and for local launches a real browser binary exists: explicit `PLAYWRIGHT_EXECUTABLE_PATH`, bundled browser, or system Chrome/Edge); if available, the search tool exposes a `searchMode` parameter and directs the agent to stay on the default `auto` and only retry with `playwright` when request results fail, return empty, or look blocked; otherwise it behaves as forced request mode. If `playwright` is forced but not usable, searches fail with a `browser_unavailable` error |
@@ -475,11 +476,13 @@ Then configure in your MCP client:
 
 ## Usage Guide
 
-The server provides six tools: `search`, `fetchLinuxDoArticle`, `fetchCsdnArticle`, `fetchGithubReadme`, `fetchJuejinArticle`, and `fetchWebContent`.
+The server provides seven tools by default: `search`, `fetchLinuxDoArticle`, `fetchCsdnArticle`, `fetchGithubReadme`, `fetchJuejinArticle`, `fetchWebContent`, and `readWebDocument`.
 
 For the local daemon HTTP API (`serve`, `status`, `GET /health`, `POST /search`, `POST /fetch-*`), see [docs/http-api.md](docs/http-api.md).
 
 ### search Tool Usage
+
+Multi-engine searches interleave candidates and apply the result limit after deduplicating full URLs. Each result lists its matching engines in `engines`. Other engines can fill remaining slots when one returns no candidates or an ordinary request fails.
 
 ```typescript
 {
@@ -626,6 +629,8 @@ Fetch content directly from public HTTP(S) links, including Markdown files (`.md
   "includeLinks": boolean // Optional: preserve links from Readability output
 }
 ```
+
+A truncated MCP fetch can return `documentId`, `readTool` and `nextOffset`. In the same MCP session, call the returned tool (normally `readWebDocument`) with the ID and offset to continue, or with `keyword` to locate a case-sensitive match and its context. Both operations reuse the downloaded text. Documents expire after 30 minutes or earlier under memory pressure. Fetch again after eviction or reconnecting.
 
 `format: "markdown"` preserves HTML headings, lists, code blocks, simple tables, and link destinations in `content`. The CLI equivalent is `open-websearch fetch-web <url> --format markdown`. Native Markdown files use the existing text-file reader.
 
