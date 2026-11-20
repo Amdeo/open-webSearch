@@ -190,7 +190,7 @@ async function testLocalDaemonOperationRoutes(): Promise<void> {
         assertEqual(searchResult.payload.status, 'ok', 'daemon /search payload status');
         assertEqual(searchResult.payload.data.query, 'Open WebSearch', 'daemon /search query');
         assertEqual(searchResult.payload.data.totalResults, 2, 'daemon /search totalResults');
-        assert(searchResult.payload.data.results.some((item) => item.description === 'Open WebSearch:2:playwright'), 'daemon /search result content');
+        assert(searchResult.payload.data.results.some((item) => item.description === 'Open WebSearch:3:playwright'), 'daemon /search result content');
 
         const fetchWebResult = await postJson<{
             status: string;

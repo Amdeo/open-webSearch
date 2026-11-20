@@ -1,6 +1,5 @@
 import { SearchResult } from '../../types.js';
 import { AppConfig } from '../../config.js';
-import { distributeLimit } from './searchEngines.js';
 
 export type SearchExecutionContext = {
     searchMode?: AppConfig['searchMode'];
@@ -48,13 +47,11 @@ export function createSearchService(engineMap: SearchEngineExecutorMap) {
                 throw new Error('Query string cannot be empty');
             }
 
-            const limits = distributeLimit(limit, engines.length);
             const partialFailures: SearchExecutionFailure[] = [];
             const effectiveSearchMode = resolveSearchModeOverride(searchMode);
 
-            const tasks = engines.map(async (engine, index) => {
+            const tasks = engines.map(async (engine) => {
                 const executor = engineMap[engine];
-                const engineLimit = limits[index];
 
                 if (!executor) {
                     partialFailures.push({
@@ -66,7 +63,7 @@ export function createSearchService(engineMap: SearchEngineExecutorMap) {
                 }
 
                 try {
-                    return await executor(cleanQuery, engineLimit, { searchMode: effectiveSearchMode });
+                    return await executor(cleanQuery, limit, { searchMode: effectiveSearchMode });
                 } catch (error) {
                     // 强制 Playwright 而配置无效属于明确的配置错误，直接上抛，由各入口以 browser_unavailable 错误响应。
                     if ((error as { code?: unknown })?.code === 'browser_unavailable') {
@@ -81,7 +78,24 @@ export function createSearchService(engineMap: SearchEngineExecutorMap) {
                 }
             });
 
-            const results = (await Promise.all(tasks)).flat().slice(0, limit);
+            const engineResults = await Promise.all(tasks);
+            const merged = new Map<string, SearchResult & { engines: string[] }>();
+            const maxLength = Math.max(0, ...engineResults.map(items => items.length));
+            for (let index = 0; index < maxLength; index++) {
+                engineResults.forEach((items, engineIndex) => {
+                    const item = items[index];
+                    if (!item) return;
+                    const existing = merged.get(item.url);
+                    if (existing) {
+                        if (!existing.engines.includes(engines[engineIndex])) {
+                            existing.engines.push(engines[engineIndex]);
+                        }
+                    } else {
+                        merged.set(item.url, { ...item, engines: [engines[engineIndex]] });
+                    }
+                });
+            }
+            const results = [...merged.values()].slice(0, limit);
 
             return {
                 query: cleanQuery,
