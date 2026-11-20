@@ -72,8 +72,7 @@ export async function searchJuejin(query: string, limit: number): Promise<Search
             const responseData = response.data;
 
             if (responseData.err_no !== 0) {
-                console.error(`❌ Juejin API error: ${responseData.err_msg}`);
-                break;
+                throw new Error(`Juejin API error: ${responseData.err_msg}`);
             }
 
             if (!responseData.data || !Array.isArray(responseData.data)) {
@@ -118,10 +117,6 @@ export async function searchJuejin(query: string, limit: number): Promise<Search
 
     } catch (error) {
         console.error('❌ Juejin search failed:', error);
-        if (axios.isAxiosError(error)) {
-            console.error('Response status:', error.response?.status);
-            console.error('Response data:', error.response?.data);
-        }
-        return [];
+        throw error;
     }
 }

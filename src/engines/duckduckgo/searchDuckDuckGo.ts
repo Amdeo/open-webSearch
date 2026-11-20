@@ -297,6 +297,6 @@ export async function searchDuckDuckGo(query: string, limit: number): Promise<Se
     return results.slice(0, maxResults);
   } catch (error) {
     console.error('DuckDuckGo HTML search failed:', error);
-    return [];
+    throw error;
   }
 }

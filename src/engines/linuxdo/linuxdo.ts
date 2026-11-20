@@ -12,7 +12,12 @@ export async function searchLinuxDo(query: string, limit: number): Promise<Searc
 
     try {
         if (config.defaultSearchEngine === 'duckduckgo') {
-            results = await searchDuckDuckGo(siteQuery, limit);
+            try {
+                results = await searchDuckDuckGo(siteQuery, limit);
+            } catch {
+                // DuckDuckGo 失败此前返回空结果，继续保留 Brave 回退。
+                results = [];
+            }
         } else if (config.defaultSearchEngine === 'bing') {
             results = await searchBing(siteQuery, limit);
         } else {
@@ -40,6 +45,6 @@ export async function searchLinuxDo(query: string, limit: number): Promise<Searc
         return filteredResults.slice(0, limit);
     } catch (error: any) {
         console.error(`❌ Linux.do search failed using ${config.defaultSearchEngine}:`, error.message || error);
-        return [];
+        throw error;
     }
 }

@@ -74,9 +74,6 @@ export async function searchExa(query: string, limit: number): Promise<SearchRes
     } catch (error) {
         // @ts-ignore
         console.error('❌ Error fetching search results from Exa.ai:', error.message);
-        if (axios.isAxiosError(error) && error.response) {
-            console.error('API Error Response:', error.response.data);
-        }
-        return [];
+        throw error;
     }
 }
