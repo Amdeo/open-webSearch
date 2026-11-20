@@ -13,6 +13,7 @@ import {
     validatePublicWebUrl
 } from '../core/validation/targetValidation.js';
 import { OpenWebSearchRuntime } from '../runtime/runtimeTypes.js';
+import { readWebDocument, saveWebDocument } from '../core/fetch/webDocuments.js';
 import { AppConfig, checkPlaywrightModeConfiguration } from '../config.js';
 export { normalizeEngineName };
 
@@ -312,9 +313,30 @@ export const setupTools = (server: McpServer, runtime: OpenWebSearchRuntime): vo
 
     // 获取通用网页/Markdown 内容工具
     if (fetchWebToolName) {
+        const owner = Symbol('MCP session');
+        const names = new Set([searchToolName, fetchLinuxDoToolName, fetchCsdnToolName, fetchGithubToolName, fetchJuejinToolName, fetchWebToolName]);
+        let readToolName = 'readWebDocument';
+        for (let suffix = 2; names.has(readToolName); suffix++) readToolName = `readWebDocument_${suffix}`;
+        server.tool(
+            readToolName,
+            'Read a previously truncated document from this session by UTF-16 offset or find a case-sensitive keyword and return its context. Documents expire after 30 minutes and may be evicted earlier.',
+            {
+                documentId: z.string().regex(/^[a-f0-9]{64}$/),
+                offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0),
+                maxChars: z.number().int().min(100).max(10000).default(4000),
+                keyword: z.string().min(1).max(100).optional()
+            },
+            async ({ documentId, offset, maxChars, keyword }) => {
+                try {
+                    return { content: [{ type: 'text', text: JSON.stringify(readWebDocument(owner, documentId, offset, maxChars, keyword)) }] };
+                } catch (error) {
+                    return { content: [{ type: 'text', text: error instanceof Error ? error.message : 'Document unavailable' }], isError: true };
+                }
+            }
+        );
         server.tool(
             fetchWebToolName,
-            "Fetch content from a public HTTP(S) URL. renderMode defaults to auto: request uses HTTP only, auto uses request with browser fallback, and browser renders directly with Playwright and fails clearly when Playwright is unavailable.",
+            `Fetch content from a public HTTP(S) URL. renderMode defaults to auto: request uses HTTP only, auto uses request with browser fallback, and browser renders directly with Playwright and fails clearly when Playwright is unavailable. Truncated content includes documentId and nextOffset for ${readToolName}, when it can be retained.`,
             {
                 url: z.string().url().refine(
                     (url) => validatePublicWebUrl(url),
@@ -329,12 +351,36 @@ export const setupTools = (server: McpServer, runtime: OpenWebSearchRuntime): vo
             async ({url, maxChars = 30000, readability, includeLinks, renderMode, format}) => {
                 try {
                     console.error(`Fetching web content: ${url}`);
-                    const result = await runtime.services.fetchWeb.execute({ url, maxChars, readability, includeLinks, renderMode, format });
+                    let fullContent: string | undefined;
+                    const result = await runtime.services.fetchWeb.execute({
+                        url, maxChars, readability, includeLinks, renderMode, format,
+                        onTruncated: content => { fullContent = content; }
+                    });
+                    const documentId = result.truncated && fullContent ? saveWebDocument(owner, fullContent) : undefined;
+                    const omitReadableHtml = (result.readableHtml?.length ?? 0) > maxChars;
+                    const links = [];
+                    let linksSize = 2;
+                    for (const link of result.links ?? []) {
+                        const size = JSON.stringify(link).length + (links.length ? 1 : 0);
+                        if (linksSize + size > 10000) break;
+                        links.push(link);
+                        linksSize += size;
+                    }
+                    const linksTruncated = result.links !== undefined && links.length < result.links.length;
+                    const payload = {
+                        ...result,
+                        ...(omitReadableHtml && { readableHtml: undefined, readableHtmlOmitted: true }),
+                        ...(linksTruncated && { links, linksTotal: result.links!.length, linksTruncated: true }),
+                        ...(documentId && { documentId, nextOffset: maxChars, readTool: readToolName }),
+                        ...(result.truncated && !documentId && {
+                            continuationUnavailable: 'Document is too large or its full content was unavailable.'
+                        })
+                    };
 
                     return {
                         content: [{
                             type: 'text',
-                            text: JSON.stringify(result, null, 2)
+                            text: JSON.stringify(payload, null, 2)
                         }]
                     };
                 } catch (error) {

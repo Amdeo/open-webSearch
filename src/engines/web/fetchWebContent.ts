@@ -45,6 +45,7 @@ export type FetchWebContentOptions = {
     readability?: boolean;
     includeLinks?: boolean;
     renderMode?: FetchWebRenderMode;
+    onTruncated?: (content: string) => void;
 };
 
 export type FetchWebRenderMode = 'request' | 'auto' | 'browser';
@@ -708,6 +709,7 @@ export async function fetchWebContent(
 
     const targetMaxChars = clampMaxChars(maxChars);
     const truncated = extractedContent.length > targetMaxChars;
+    if (truncated) options.onTruncated?.(extractedContent);
     const content = truncated
         ? `${extractedContent.slice(0, targetMaxChars)}\n\n[...truncated ${extractedContent.length - targetMaxChars} characters]`
         : extractedContent;
