@@ -619,12 +619,15 @@ Fetch content directly from public HTTP(S) links, including Markdown files (`.md
 ```typescript
 {
   "url": string,          // Public HTTP(S) URL
+  "format": string,       // Optional: text (default) or markdown
   "maxChars": number,     // Optional: max returned content length (1000-200000, default 30000)
   "renderMode": string,   // Optional: request, auto (default), or browser
   "readability": boolean, // Optional: use Mozilla Readability for HTML
   "includeLinks": boolean // Optional: preserve links from Readability output
 }
 ```
+
+`format: "markdown"` preserves HTML headings, lists, code blocks, simple tables, and link destinations in `content`. The CLI equivalent is `open-websearch fetch-web <url> --format markdown`. Native Markdown files use the existing text-file reader.
 
 `request` never starts a browser or uses browser cookies. `auto` preserves the existing request-first behavior and uses browser assistance only when needed. `browser` renders the page directly and returns a clear error if Playwright or its browser target is unavailable. Initial and final URLs remain subject to public-network safety checks.
 

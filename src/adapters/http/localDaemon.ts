@@ -1,3 +1,4 @@
+import type { WebFetchInput } from '../../core/fetch/fetchServices.js';
 import express from 'express';
 import http from 'node:http';
 import { AppConfig, checkPlaywrightModeConfiguration, getEffectiveSearchMode } from '../../config.js';
@@ -157,6 +158,16 @@ function parseRenderMode(value: unknown): 'request' | 'auto' | 'browser' | undef
     return value;
 }
 
+function parseFormat(value: unknown): 'text' | 'markdown' | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+    if (value !== 'text' && value !== 'markdown') {
+        throw new Error('format must be one of: text, markdown');
+    }
+    return value;
+}
+
 export async function startLocalDaemon(
     runtime: OpenWebSearchRuntime,
     options: LocalDaemonOptions = {}
@@ -259,20 +270,15 @@ export async function startLocalDaemon(
     });
 
     app.post('/fetch-web', async (req, res) => {
-        let input: {
-            url: string;
-            maxChars: number;
-            readability?: boolean;
-            includeLinks?: boolean;
-            renderMode?: 'request' | 'auto' | 'browser';
-        };
+        let input: WebFetchInput;
         try {
             input = {
                 url: parseUrl(req.body?.url),
                 maxChars: parseMaxChars(req.body?.maxChars),
                 readability: parseBooleanFlag(req.body?.readability, 'readability'),
                 includeLinks: parseBooleanFlag(req.body?.includeLinks, 'includeLinks'),
-                renderMode: parseRenderMode(req.body?.renderMode)
+                renderMode: parseRenderMode(req.body?.renderMode),
+                format: parseFormat(req.body?.format)
             };
             if (!validatePublicWebUrl(input.url)) {
                 throw new Error('Invalid public HTTP(S) URL');
@@ -280,7 +286,7 @@ export async function startLocalDaemon(
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             sendError(res, 400, 'validation_failed', message, {
-                hint: 'Use a public HTTP(S) URL, keep maxChars within the supported range, pass readability/includeLinks only as booleans, and use renderMode request, auto, or browser.'
+                hint: 'Use a public HTTP(S) URL, keep maxChars within the supported range, pass readability/includeLinks only as booleans, use renderMode request, auto, or browser, and format text or markdown.'
             });
             return;
         }

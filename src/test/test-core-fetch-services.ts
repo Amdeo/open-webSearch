@@ -23,6 +23,7 @@ async function testWebFetchService(): Promise<void> {
     let seenReadability: boolean | undefined;
     let seenIncludeLinks: boolean | undefined;
     let seenRenderMode: string | undefined;
+    let seenFormat: string | undefined;
 
     const service = createWebFetchService(async (url, maxChars, options) => {
         seenUrl = url;
@@ -30,6 +31,7 @@ async function testWebFetchService(): Promise<void> {
         seenReadability = options?.readability;
         seenIncludeLinks = options?.includeLinks;
         seenRenderMode = options?.renderMode;
+        seenFormat = options?.format;
         return {
             url,
             finalUrl: url,
@@ -48,7 +50,8 @@ async function testWebFetchService(): Promise<void> {
         maxChars: 1234,
         readability: true,
         includeLinks: true,
-        renderMode: 'browser'
+        renderMode: 'browser',
+        format: 'markdown'
     });
 
     assertEqual(seenUrl, 'https://example.com/docs', 'web fetch forwards url');
@@ -56,6 +59,7 @@ async function testWebFetchService(): Promise<void> {
     assertEqual(seenReadability, true, 'web fetch forwards readability');
     assertEqual(seenIncludeLinks, true, 'web fetch forwards includeLinks');
     assertEqual(seenRenderMode, 'browser', 'web fetch forwards renderMode');
+    assertEqual(seenFormat, 'markdown', 'web fetch forwards format');
     assertEqual(result.title, 'Example', 'web fetch returns delegate result');
     assertEqual(result.readabilityApplied, true, 'web fetch returns delegate readability result');
     assertEqual(result.links?.[0]?.href, 'https://example.com/doc', 'web fetch returns delegate links');

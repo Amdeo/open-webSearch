@@ -7,6 +7,7 @@ import {
 
 export type ArticleFetcher = (url: string) => Promise<{ content: string }>;
 export type GithubReadmeFetcher = (url: string) => Promise<string | null>;
+export type WebFetchInput = { url: string; maxChars: number } & FetchWebContentOptions;
 export type WebFetcher = (url: string, maxChars: number, options?: FetchWebContentOptions) => Promise<FetchWebContentResult>;
 
 export function createArticleFetchService(
@@ -38,24 +39,12 @@ export function createGithubReadmeService(fetcher: GithubReadmeFetcher) {
 
 export function createWebFetchService(fetcher: WebFetcher) {
     return {
-        async execute({
-            url,
-            maxChars,
-            readability,
-            includeLinks,
-            renderMode
-        }: {
-            url: string;
-            maxChars: number;
-            readability?: boolean;
-            includeLinks?: boolean;
-            renderMode?: FetchWebContentOptions['renderMode'];
-        }): Promise<FetchWebContentResult> {
+        async execute({ url, maxChars, ...options }: WebFetchInput): Promise<FetchWebContentResult> {
             if (!validatePublicWebUrl(url)) {
                 throw new Error('Invalid public HTTP(S) URL');
             }
 
-            return fetcher(url, maxChars, { readability, includeLinks, renderMode });
+            return fetcher(url, maxChars, options);
         }
     };
 }

@@ -323,12 +323,13 @@ export const setupTools = (server: McpServer, runtime: OpenWebSearchRuntime): vo
                 maxChars: z.number().int().min(1000).max(200000).default(30000),
                 readability: z.boolean().optional(),
                 includeLinks: z.boolean().optional(),
-                renderMode: z.enum(['request', 'auto', 'browser']).optional()
+                renderMode: z.enum(['request', 'auto', 'browser']).optional(),
+                format: z.enum(['text', 'markdown']).optional()
             },
-            async ({url, maxChars = 30000, readability, includeLinks, renderMode}) => {
+            async ({url, maxChars = 30000, readability, includeLinks, renderMode, format}) => {
                 try {
                     console.error(`Fetching web content: ${url}`);
-                    const result = await runtime.services.fetchWeb.execute({ url, maxChars, readability, includeLinks, renderMode });
+                    const result = await runtime.services.fetchWeb.execute({ url, maxChars, readability, includeLinks, renderMode, format });
 
                     return {
                         content: [{

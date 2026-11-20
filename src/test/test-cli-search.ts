@@ -72,7 +72,7 @@ function createStubRuntime(configOverrides: Partial<AppConfig> = {}) {
                 title: 'Example',
                 retrievalMethod: 'request' as const,
                 truncated: false,
-                content: `ok:${maxChars}:${options?.readability ? 'readability' : 'plain'}:${options?.renderMode ?? 'auto'}`,
+                content: `ok:${maxChars}:${options?.readability ? 'readability' : 'plain'}:${options?.renderMode ?? 'auto'}${options?.format ? `:${options.format}` : ''}`,
                 readabilityApplied: options?.readability ?? false,
                 links: options?.includeLinks ? [{ text: 'Doc', href: 'https://example.com/doc' }] : undefined
             }),
@@ -169,6 +169,13 @@ function testParseFetchArgs(): void {
         invalidRenderModeRejected = true;
     }
     assert(invalidRenderModeRejected, 'invalid fetch-web render mode should be rejected');
+
+    for (const value of ['invalid', '']) {
+        let rejected = false;
+        try { parseFetchWebArgs(['https://example.com', '--format', value]); } catch { rejected = true; }
+        assert(rejected, 'invalid or missing fetch-web format should be rejected');
+    }
+    assertEqual(parseFetchWebArgs(['https://example.com', '--format', 'text']).format, 'text', 'CLI accepts text format');
 
     const parsedGithub = parseFetchGithubArgs([
         'https://github.com/Aas-ee/open-webSearch',
@@ -426,7 +433,7 @@ async function testRunCliFetchWebReadabilityJsonSuccess(): Promise<void> {
     const stdout: string[] = [];
     const stderr: string[] = [];
     const exitCode = await runCli(
-        ['fetch-web', 'https://example.com', '--max-chars', '4321', '--render-mode', 'browser', '--readability', '--include-links', '--json'],
+        ['fetch-web', 'https://example.com', '--max-chars', '4321', '--render-mode', 'browser', '--readability', '--include-links', '--format', 'markdown', '--json'],
         runtime,
         {
             stdout: (text) => stdout.push(text),
@@ -441,7 +448,7 @@ async function testRunCliFetchWebReadabilityJsonSuccess(): Promise<void> {
         data: { content: string; readabilityApplied?: boolean; links?: Array<{ href: string }> };
     };
     assertEqual(payload.status, 'ok', 'CLI fetch-web readability json status');
-    assertEqual(payload.data.content, 'ok:4321:readability:browser', 'CLI fetch-web readability json content');
+    assertEqual(payload.data.content, 'ok:4321:readability:browser:markdown', 'CLI fetch-web readability json content');
     assertEqual(payload.data.readabilityApplied, true, 'CLI fetch-web readability flag');
     assertEqual(payload.data.links?.[0]?.href, 'https://example.com/doc', 'CLI fetch-web readability links');
 
@@ -529,7 +536,7 @@ async function testRunCliFetchWebBrowserUnavailable(): Promise<void> {
     const stdout: string[] = [];
     const stderr: string[] = [];
     const exitCode = await runCli(
-        ['fetch-web', 'https://example.com', '--render-mode', 'browser', '--json'],
+        ['fetch-web', 'https://example.com', '--render-mode', 'browser', '--format', 'markdown', '--json'],
         runtime,
         {
             stdout: (text) => stdout.push(text),
@@ -723,7 +730,7 @@ async function testRunCliPrefersDaemonWhenAvailable(): Promise<void> {
                 title: 'Example',
                 retrievalMethod: 'request' as const,
                 truncated: false,
-                content: `daemon:${maxChars}:${options?.renderMode ?? 'auto'}`
+                content: `daemon:${maxChars}:${options?.renderMode ?? 'auto'}:${options?.format ?? 'none'}`
             }),
             fetchCsdnArticle: async () => ({ content: 'daemon-csdn' }),
             fetchJuejinArticle: async () => ({ content: 'daemon-juejin' }),
@@ -756,13 +763,13 @@ async function testRunCliPrefersDaemonWhenAvailable(): Promise<void> {
 
             const fetchStdout: string[] = [];
             const fetchExitCode = await runCli(
-                ['fetch-web', 'https://example.com', '--render-mode', 'browser', '--json'],
+                ['fetch-web', 'https://example.com', '--render-mode', 'browser', '--format', 'markdown', '--json'],
                 localRuntime,
                 { stdout: (text) => fetchStdout.push(text), stderr: () => undefined }
             );
             const fetchPayload = JSON.parse(fetchStdout[0]) as { status: string; data: { content: string } };
             assertEqual(fetchExitCode, 0, 'CLI daemon fetch-web exit code');
-            assertEqual(fetchPayload.data.content, 'daemon:30000:browser', 'CLI should forward renderMode through daemon');
+            assertEqual(fetchPayload.data.content, 'daemon:30000:browser:markdown', 'CLI should forward renderMode and format through daemon');
             assertEqual(localFetchCalls, 0, 'CLI should not execute fetch-web locally when daemon succeeds');
         });
 

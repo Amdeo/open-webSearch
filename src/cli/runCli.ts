@@ -55,8 +55,8 @@ function formatCliHelp(): string {
         'One-shot action commands:',
         '  open-websearch search <query> [--limit N] [--engine NAME] [--engines a,b] [--search-mode MODE] [--daemon-url URL] [--spawn] [--json]',
         '    Search the web. `--search-mode` is request|auto|playwright and currently only affects Bing.',
-        '  open-websearch fetch-web <url> [--max-chars N] [--render-mode MODE] [--readability] [--include-links] [--daemon-url URL] [--spawn] [--json]',
-        '    Fetch readable page content. `--render-mode` is request|auto|browser; browser renders directly with Playwright. `--readability` enables Mozilla Readability extraction; `--include-links` preserves article links.',
+        '  open-websearch fetch-web <url> [--max-chars N] [--render-mode MODE] [--readability] [--include-links] [--format text|markdown] [--daemon-url URL] [--spawn] [--json]',
+        '    Fetch readable page content. `--render-mode` is request|auto|browser; browser renders directly with Playwright. `--readability` enables Mozilla Readability extraction; `--include-links` preserves article links; `--format` selects text or markdown.',
         '  open-websearch fetch-github-readme <url> [--daemon-url URL] [--spawn] [--json]',
         '  open-websearch fetch-csdn <url> [--daemon-url URL] [--spawn] [--json]',
         '  open-websearch fetch-juejin <url> [--daemon-url URL] [--spawn] [--json]',
@@ -97,6 +97,7 @@ export type ParsedFetchWebArgs = {
     readability: boolean;
     includeLinks: boolean;
     renderMode?: 'request' | 'auto' | 'browser';
+    format?: 'text' | 'markdown';
     json: boolean;
 };
 
@@ -297,6 +298,7 @@ export function parseFetchWebArgs(argv: string[]): ParsedFetchWebArgs {
     let readability = false;
     let includeLinks = false;
     let renderMode: ParsedFetchWebArgs['renderMode'];
+    let format: ParsedFetchWebArgs['format'];
     let json = false;
 
     for (let index = 0; index < argv.length; index += 1) {
@@ -324,6 +326,19 @@ export function parseFetchWebArgs(argv: string[]): ParsedFetchWebArgs {
 
         if (arg === '--include-links') {
             includeLinks = true;
+            continue;
+        }
+
+        if (arg === '--format') {
+            const next = argv[index + 1];
+            if (!next || isFlag(next)) {
+                throw new Error('Missing value for --format');
+            }
+            if (next !== 'text' && next !== 'markdown') {
+                throw new Error('format must be one of: text, markdown');
+            }
+            format = next;
+            index += 1;
             continue;
         }
 
@@ -361,6 +376,7 @@ export function parseFetchWebArgs(argv: string[]): ParsedFetchWebArgs {
         readability,
         includeLinks,
         renderMode,
+        format,
         json
     };
 }
@@ -953,11 +969,11 @@ export async function runCli(
                 io.stdout(JSON.stringify(createErrorEnvelope(
                     'invalid_arguments',
                     message,
-                    { hint: 'Use `open-websearch fetch-web <url> [--max-chars N] [--render-mode request|auto|browser] [--json]`.' }
+                    { hint: 'Use `open-websearch fetch-web <url> [--max-chars N] [--render-mode request|auto|browser] [--format text|markdown] [--json]`.' }
                 ), null, 2));
             } else {
                 io.stderr(message);
-                io.stderr('Usage: open-websearch fetch-web <url> [--max-chars N] [--render-mode request|auto|browser] [--readability] [--include-links] [--json]');
+                io.stderr('Usage: open-websearch fetch-web <url> [--max-chars N] [--render-mode request|auto|browser] [--readability] [--include-links] [--format text|markdown] [--json]');
             }
             return 1;
         }
@@ -971,7 +987,8 @@ export async function runCli(
                     maxChars: parsed.maxChars,
                     readability: parsed.readability,
                     includeLinks: parsed.includeLinks,
-                    renderMode: parsed.renderMode
+                    renderMode: parsed.renderMode,
+                    format: parsed.format
                 },
                 options
             );
@@ -994,7 +1011,8 @@ export async function runCli(
                 maxChars: parsed.maxChars,
                 readability: parsed.readability,
                 includeLinks: parsed.includeLinks,
-                renderMode: parsed.renderMode
+                renderMode: parsed.renderMode,
+                format: parsed.format
             });
 
             if (parsed.json) {

@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import { JSDOM } from 'jsdom';
+import { htmlToMarkdown } from './htmlToMarkdown.js';
 import { config } from '../../config.js';
 import { buildAxiosRequestOptions, requestWithSafeRedirects } from '../../utils/httpRequest.js';
 import { assertPublicHttpUrl, assertPublicHttpUrlResolved } from '../../utils/urlSafety.js';
@@ -40,6 +41,7 @@ export type ExtractedLink = {
 };
 
 export type FetchWebContentOptions = {
+    format?: 'text' | 'markdown';
     readability?: boolean;
     includeLinks?: boolean;
     renderMode?: FetchWebRenderMode;
@@ -131,7 +133,7 @@ let readabilityParser: (html: string, finalUrl: string) => Promise<ReadabilityAr
     }
 };
 
-function extractMainTextFromHtml(html: string): HtmlExtractionResult {
+function extractMainTextFromHtml(html: string, finalUrl: string, format: FetchWebContentOptions['format']): HtmlExtractionResult {
     const $ = cheerio.load(html);
     const title = $('title').first().text().trim();
     const metaDescription = $('meta[name="description"]').attr('content')?.trim() ||
@@ -152,6 +154,7 @@ function extractMainTextFromHtml(html: string): HtmlExtractionResult {
     ];
 
     let selectedText = '';
+    let selected = $('body');
     let mode: HtmlExtractionResult['mode'] = 'metadata';
     for (const selector of preferredContainers) {
         const container = $(selector).first();
@@ -161,6 +164,7 @@ function extractMainTextFromHtml(html: string): HtmlExtractionResult {
 
         const candidate = normalizeText(container.text());
         if (candidate.length >= 120) {
+            selected = container;
             selectedText = candidate;
             mode = 'container';
             break;
@@ -168,8 +172,7 @@ function extractMainTextFromHtml(html: string): HtmlExtractionResult {
     }
 
     if (!selectedText) {
-        const body = $('body');
-        selectedText = normalizeText((body.length > 0 ? body : $.root()).text());
+        selectedText = normalizeText(selected.text());
         if (selectedText) {
             mode = 'body';
         }
@@ -182,6 +185,9 @@ function extractMainTextFromHtml(html: string): HtmlExtractionResult {
         mode = 'metadata';
     }
 
+    if (format === 'markdown' && mode !== 'metadata') {
+        selectedText = htmlToMarkdown(selected.html() ?? '', finalUrl, $('base[href]').first().attr('href')) || selectedText;
+    }
     return { title, text: selectedText, mode };
 }
 
@@ -628,12 +634,14 @@ export async function fetchWebContent(
     let siteName: string | undefined;
 
     const finalParsedUrl = new URL(finalUrl);
+    const markdownSource = options.format === 'markdown' && retrievalMethod !== 'browser-html' &&
+        (isMarkdownContentType(contentType) || (isMarkdownPath(finalParsedUrl) && !contentType.includes('html')));
 
     // Keep raw markdown behavior for the resolved final path.
-    if (retrievalMethod !== 'browser-html' && isMarkdownPath(finalParsedUrl)) {
+    if (markdownSource || (retrievalMethod !== 'browser-html' && isMarkdownPath(finalParsedUrl))) {
         extractedContent = normalizeText(raw);
     } else if (contentType.includes('text/html') || looksLikeHtml(raw)) {
-        htmlExtraction = extractMainTextFromHtml(raw);
+        htmlExtraction = extractMainTextFromHtml(raw, finalUrl, options.format);
         title = htmlExtraction.title || title;
         extractedContent = htmlExtraction.text;
     } else if (isMarkdownContentType(contentType)) {
@@ -642,7 +650,7 @@ export async function fetchWebContent(
         extractedContent = normalizeText(raw);
     }
 
-    if (renderMode === 'auto' && shouldTryBrowserHtmlFallback(contentType, raw, htmlExtraction)) {
+    if (!markdownSource && renderMode === 'auto' && shouldTryBrowserHtmlFallback(contentType, raw, htmlExtraction)) {
         try {
             // 合并第2+3层：浏览器导航一次，Cookie+HTTP 和渲染竞速
             const raceResult = await browserFetcher(parsedUrl.toString());
@@ -651,7 +659,7 @@ export async function fetchWebContent(
             finalUrl = raceResult.finalUrl;
             raw = raceResult.raw;
             retrievalMethod = raceResult.retrievalMethod;
-            htmlExtraction = extractMainTextFromHtml(raw);
+            htmlExtraction = extractMainTextFromHtml(raw, finalUrl, options.format);
             title = htmlExtraction.title || raceResult.title;
             extractedContent = htmlExtraction.text;
 
@@ -667,7 +675,7 @@ export async function fetchWebContent(
         }
     }
 
-    if (options.readability && (contentType.includes('text/html') || looksLikeHtml(raw))) {
+    if (!markdownSource && options.readability && (contentType.includes('text/html') || looksLikeHtml(raw))) {
         try {
             const article = await readabilityParser(raw, finalUrl);
             if (article?.content) {
@@ -680,7 +688,7 @@ export async function fetchWebContent(
                     excerpt = article.excerpt?.trim() || undefined;
                     siteName = article.siteName?.trim() || undefined;
                     title = article.title?.trim() || title;
-                    extractedContent = readableText;
+                    extractedContent = options.format === 'markdown' ? htmlToMarkdown(article.content, finalUrl) || readableText : readableText;
                 }
             } else {
                 logReadabilityFallback('parser returned no article content');

@@ -172,6 +172,7 @@ Request body:
   "url": "https://awiki.ai",
   "maxChars": 30000,
   "renderMode": "auto",
+  "format": "markdown",
   "readability": false,
   "includeLinks": false
 }
@@ -182,6 +183,7 @@ Notes:
 - `maxChars` is optional, integer `1000-200000`, default `30000`
 - `renderMode` is optional: `request` uses HTTP only, `auto` (default) uses request with browser fallback, and `browser` renders directly with Playwright
 - `readability` and `includeLinks` are optional booleans; `includeLinks` applies to successful Readability output
+- `format` accepts `text` (default) or `markdown`. The latter preserves the structure of HTML in the returned `content`, including when Readability selects the article.
 - `browser` returns a clear error if Playwright or its configured browser target is unavailable
 - returns the full structured web-fetch payload
 

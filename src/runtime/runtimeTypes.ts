@@ -1,6 +1,7 @@
 import { AppConfig } from '../config.js';
 import { SearchExecutionInput, SearchExecutionResult } from '../core/search/searchService.js';
-import { FetchWebContentOptions, FetchWebContentResult } from '../engines/web/fetchWebContent.js';
+import type { WebFetchInput } from '../core/fetch/fetchServices.js';
+import { FetchWebContentResult } from '../engines/web/fetchWebContent.js';
 
 export type SearchService = {
     execute(input: SearchExecutionInput): Promise<SearchExecutionResult>;
@@ -15,13 +16,7 @@ export type GithubReadmeService = {
 };
 
 export type FetchWebService = {
-    execute(input: {
-        url: string;
-        maxChars: number;
-        readability?: boolean;
-        includeLinks?: boolean;
-        renderMode?: FetchWebContentOptions['renderMode'];
-    }): Promise<FetchWebContentResult>;
+    execute(input: WebFetchInput): Promise<FetchWebContentResult>;
 };
 
 export type OpenWebSearchRuntimeServices = {

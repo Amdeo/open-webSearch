@@ -713,12 +713,15 @@ use_mcp_tool({
 ```typescript
 {
   "url": string,          // 公开可访问的 HTTP(S) URL
+  "format": string,       // 可选，text（默认）或 markdown
   "maxChars": number,     // 可选：最大返回字符数（1000-200000，默认30000）
   "renderMode": string,   // 可选：request、auto（默认）或 browser
   "readability": boolean, // 可选：对 HTML 使用 Mozilla Readability
   "includeLinks": boolean // 可选：保留 Readability 输出中的链接
 }
 ```
+
+读技术文档时可以传 `format: "markdown"`，正文中的标题、列表、代码块、普通表格和链接会保留在 `content` 中。命令行写作 `open-websearch fetch-web <url> --format markdown`。原生 Markdown 文件沿用现有读取方式。
 
 `request` 不会启动浏览器或使用浏览器 Cookie；`auto` 保持现有的请求优先行为，仅在必要时使用浏览器辅助；`browser` 直接渲染页面，当 Playwright 或浏览器目标不可用时返回明确错误。初始 URL 和最终 URL 仍会经过公网安全校验。
 

@@ -79,7 +79,7 @@ function createStubRuntime() {
                     title: 'Example',
                     retrievalMethod: 'request' as const,
                     truncated: false,
-                    content: `ok:${maxChars}:${options?.readability ? 'readability' : 'plain'}:${options?.renderMode ?? 'auto'}`,
+                    content: `ok:${maxChars}:${options?.readability ? 'readability' : 'plain'}:${options?.renderMode ?? 'auto'}${options?.format ? `:${options.format}` : ''}`,
                     readabilityApplied: options?.readability ?? false,
                     links: options?.includeLinks ? [{ text: 'Doc', href: 'https://example.com/doc' }] : undefined
                 };
@@ -200,13 +200,23 @@ async function testLocalDaemonOperationRoutes(): Promise<void> {
             maxChars: 1234,
             readability: true,
             includeLinks: true,
-            renderMode: 'browser'
+            renderMode: 'browser',
+            format: 'markdown'
         });
         assertEqual(fetchWebResult.response.status, 200, 'daemon /fetch-web http status');
         assertEqual(fetchWebResult.payload.status, 'ok', 'daemon /fetch-web payload status');
         assertEqual(fetchWebResult.payload.data.url, 'https://example.com', 'daemon /fetch-web url');
-        assertEqual(fetchWebResult.payload.data.content, 'ok:1234:readability:browser', 'daemon /fetch-web content');
+        assertEqual(fetchWebResult.payload.data.content, 'ok:1234:readability:browser:markdown', 'daemon /fetch-web content');
         assertEqual((fetchWebResult.payload.data as { readabilityApplied?: boolean }).readabilityApplied, true, 'daemon /fetch-web readability flag');
+
+        const textFormatResult = await postJson<{ data: { content: string } }>(daemon.baseUrl, '/fetch-web', { url: 'https://example.com', format: 'text' });
+        assertEqual(textFormatResult.payload.data.content, 'ok:30000:plain:auto:text', 'daemon forwards text format');
+
+        for (const format of ['invalid', null, 42]) {
+            const invalidFormatResult = await postJson<{ error: { code: string } }>(daemon.baseUrl, '/fetch-web', { url: 'https://example.com', format });
+            assertEqual(invalidFormatResult.response.status, 400, 'daemon invalid format http status');
+            assertEqual(invalidFormatResult.payload.error.code, 'validation_failed', 'daemon invalid format error');
+        }
 
         const invalidRenderModeResult = await postJson<{ status: string; error: { code: string } }>(daemon.baseUrl, '/fetch-web', {
             url: 'https://example.com',
