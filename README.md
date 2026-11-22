@@ -40,7 +40,7 @@
     - hackernews
     - keenable
 - HTTP proxy configuration support for accessing restricted resources
-- No API keys or authentication required
+- Keyless search, optional search APIs, and self-hosted SearXNG
 - Returns structured results with titles, URLs, and descriptions
 - Configurable number of results per search
 - Customizable default search engine
@@ -48,6 +48,38 @@
     - csdn
     - github (README files)
     - generic HTTP(S) page / Markdown content
+
+## Optional search APIs and self-hosted search
+
+Set credentials in the environment of the MCP server, CLI, or daemon. Use the `engines` field in MCP and HTTP search requests or `--engine` and `--engines` in the CLI.
+
+| Engine | Environment variable | Search source |
+| --- | --- | --- |
+| `exa-api` | `EXA_API_KEY` | Exa Search API |
+| `brave-api` | `BRAVE_SEARCH_API_KEY` | Brave Web Search API |
+| `tavily` | `TAVILY_API_KEY` (optional) | Tavily Search, with anonymous access when the key is unset |
+| `firecrawl` | `FIRECRAWL_API_KEY` (optional) | Firecrawl web search, with anonymous access when the key is unset. Set `FIRECRAWL_SEARCH_CATEGORY=developer` for the Developer Index |
+| `you.com` | `YDC_API_KEY` (optional) | You.com Search API or free MCP when the key is unset |
+| `tinyfish` | `TINYFISH_API_KEY` | TinyFish TinySearch |
+| `perplexity` | `PERPLEXITY_API_KEY` | Perplexity Search. Set `PERPLEXITY_SEARCH_TYPE=fast` for Fast Search. Default is `web` |
+| `linkup` | `LINKUP_API_KEY` | Linkup standard search |
+| `kagi` | `KAGI_API_KEY` | Kagi Search API |
+| `serper` | `SERPER_API_KEY` | Third-party Google results |
+| `serpapi` | `SERPAPI_API_KEY` | Third-party Google results |
+| `deepseek` | `DEEPSEEK_API_KEY` | DeepSeek standalone Search API |
+| `doubao` | `DOUBAO_SEARCH_API_KEY` | Volcengine Doubao Search Custom |
+| `yuanbao` | `YUANBAO_SEARCH_API_KEY` | Tencent Cloud Yuanbao SearchPro. Set `YUANBAO_SEARCH_SPEED=true` for the Speed edition |
+| `zhipu` | `ZHIPUAI_API_KEY` | Zhipu Web Search. Set `ZHIPU_SEARCH_ENGINE` to `search_std` (default), `search_pro`, `search_pro_sogou`, or `search_pro_quark` |
+| `baidu-api` | `QIANFAN_API_KEY` | Qianfan Baidu Search |
+| `bocha` | `BOCHA_API_KEY` | Bocha Web Search |
+| `aliyun-iqs` | `ALIYUN_IQS_API_KEY` | Alibaba Cloud IQS Unified Search |
+| `searxng` | `SEARXNG_URL`, optional `SEARXNG_API_KEY` | Self-hosted instance with JSON output enabled. The optional key is sent as a Bearer token |
+
+For example, call `search` with `{"query":"SQLite WAL documentation","engines":["deepseek","tavily","bing"],"limit":5}`. An engine reports `missing_api_key` when its required credentials are absent and `query_too_long` when a query exceeds its input limit. If every engine fails, the response is an `all_engines_failed` error with the individual failures.
+
+HTTP MCP requires `MCP_HTTP_AUTH_TOKEN` whenever an enabled search engine has server-side credentials. Clients send the same token in `Authorization: Bearer <token>` on each request over HTTPS. When using a reverse proxy on the same host, bind `MCP_HTTP_HOST` to `127.0.0.1` and forward the `Authorization` header. With credentials and no token, `MODE=http` fails at startup and `MODE=both` starts only stdio. The local CLI daemon binds only to `127.0.0.1` or `::1` when it can use server-side credentials.
+
+Set `SEARXNG_URL` to the instance's base URL, including any deployment subpath. Connections to this instance go directly using its configured HTTP(S) protocol.
 
 ## Choose the Right Path
 
@@ -173,15 +205,16 @@ npx cross-env DEFAULT_SEARCH_ENGINE=duckduckgo ENABLE_CORS=true open-websearch
 |----------|-------------------------|---------|-------------|
 | `ENABLE_CORS` | `false`                 | `true`, `false` | Enable CORS |
 | `CORS_ORIGIN` | `*`                     | Any valid origin | CORS origin configuration |
-| `DEFAULT_SEARCH_ENGINE` | `bing`                  | `bing`, `duckduckgo`, `exa`, `brave`, `baidu`, `csdn`, `linuxdo`, `juejin`, `startpage`, `sogou`, `hackernews`, `keenable` | Default search engine |
+| `DEFAULT_SEARCH_ENGINE` | `bing` | Built-in or optional search engine ID | Default search engine |
 | `USE_PROXY` | `false`                 | `true`, `false` | Enable HTTP proxy |
 | `PROXY_URL` | `http://127.0.0.1:7890` | Any valid URL | Proxy server URL |
 | `FAKE_IP_CIDRS` | empty | Comma-separated CIDR list | Treat DNS answers in these CIDRs as synthetic fake-IP results and do not block them as private-network DNS answers. Literal private/local targets and other private-network DNS answers remain blocked |
 | `FETCH_WEB_INSECURE_TLS` | `false` | `true`, `false` | Disable TLS verification only for the request leg of `fetchWebContent`; it does not affect Playwright browser navigation. Use only for broken certificate chains |
 | `MODE` | `both`                  | `both`, `http`, `stdio` | Server mode: both HTTP+STDIO, HTTP only, or STDIO only |
 | `MCP_HTTP_HOST` | `0.0.0.0` | Listen address | Use `127.0.0.1` behind a reverse proxy on the same host. |
+| `MCP_HTTP_AUTH_TOKEN` | empty | Dedicated access token | Requires Bearer authentication for all HTTP MCP requests. Required when an enabled search engine has server-side credentials. |
 | `PORT` | `3000`                  | 1-65535 | Server port |
-| `ALLOWED_SEARCH_ENGINES` | empty (all available) | Comma-separated engine names | Limit which search engines can be used; if the default engine is not in this list, the first allowed engine becomes the default |
+| `ALLOWED_SEARCH_ENGINES` | empty (all available) | Comma-separated engine names | Accepts the same aliases as search requests. Startup fails if an explicit list contains no valid engine. The first valid engine becomes the default if the original default is outside the list. |
 | `SEARCH_MODE` | `auto` | `request`, `auto`, `playwright` | Search strategy. Currently only affects Bing: force HTTP request mode (`request`), force Playwright mode (`playwright`), or let the agent choose (`auto`, default). Forced modes never expose a `searchMode` override to the agent. In `auto` mode the server checks whether Playwright is really usable (the client module can actually be loaded, and for local launches a real browser binary exists: explicit `PLAYWRIGHT_EXECUTABLE_PATH`, bundled browser, or system Chrome/Edge); if available, the search tool exposes a `searchMode` parameter and directs the agent to stay on the default `auto` and only retry with `playwright` when request results fail, return empty, or look blocked; otherwise it behaves as forced request mode. If `playwright` is forced but not usable, searches fail with a `browser_unavailable` error |
 | `PLAYWRIGHT_PACKAGE` | `auto` | `auto`, `playwright`, `playwright-core` | Which Playwright client package to resolve when browser mode is enabled |
 | `PLAYWRIGHT_MODULE_PATH` | empty | Absolute path or project-relative path | Reuse an existing Playwright client package outside this project |
@@ -401,7 +434,7 @@ Windows NPX configuration:
 
 Proxy and TLS notes:
 - open-websearch now disables Axios environment-proxy auto-detection internally and only uses the explicit `USE_PROXY` + `PROXY_URL` path.
-- When `USE_PROXY=true`, all Axios-based network requests follow the configured `PROXY_URL` path instead of mixing direct requests with environment-proxy behavior.
+- When `USE_PROXY=true`, Axios requests and the free You.com MCP use `PROXY_URL`. Self-hosted SearXNG connections go directly to the configured instance.
 - If `PROXY_URL` points to a local rule-based proxy client, that client can still decide which destinations go `DIRECT` and which ones are proxied.
 - If `PROXY_URL` points to a fixed upstream proxy or overseas egress, region-sensitive sites such as Baidu, CSDN, Juejin, Linux.do, or GitHub may behave differently than before.
 - If your host machine already sets `HTTP_PROXY` or `HTTPS_PROXY`, they will no longer override the server's internal request behavior.

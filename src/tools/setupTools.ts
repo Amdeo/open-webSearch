@@ -1,6 +1,7 @@
 // tools/setupTools.ts
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { AllSearchEnginesFailedError } from '../core/search/searchService.js';
 import {
     normalizeEngineName,
     resolveRequestedEngines,
@@ -61,7 +62,7 @@ export const setupTools = (server: McpServer, runtime: OpenWebSearchRuntime): vo
             ? ' searchMode meanings: request performs plain HTTP scraping, playwright drives a real browser through Playwright, and auto or omitting searchMode lets the server decide (request first, falling back to Playwright when it is blocked). Start with the default auto (or omit searchMode). Only retry the same query with searchMode=playwright when the request-based results fail, come back empty, or are clearly blocked or low-quality, for example anti-bot or verification pages.'
             : '';
         if (runtime.config.allowedSearchEngines.length === 0) {
-            return `Search the web using multiple engines (e.g., Baidu, Bing, DuckDuckGo, CSDN, Exa, Brave, Juejin(掘金), Startpage, Sogou(搜狗), Hacker News, Keenable) with no API key required.${searchModeDescription}`;
+            return `Search the web using multiple engines, including Hacker News (hackernews). Choose engines by these IDs: ${SUPPORTED_SEARCH_ENGINES.join(', ')}. Some engines require server-side credentials or a configured instance URL.${searchModeDescription}`;
         } else {
             const enginesText = runtime.config.allowedSearchEngines.map(e => {
                 switch (e) {
@@ -73,11 +74,14 @@ export const setupTools = (server: McpServer, runtime: OpenWebSearchRuntime): vo
                         return 'Sogou(搜狗)';
                     case 'hackernews':
                         return 'Hacker News';
+                    case 'exa-api':
+                    case 'brave-api':
+                        return `${e} (server-side API key required)`;
                     default:
                         return e.charAt(0).toUpperCase() + e.slice(1);
                 }
             }).join(', ');
-            return `Search the web using these engines: ${enginesText} (no API key required).${searchModeDescription}`;
+            return `Search the web using these engines: ${enginesText}.${searchModeDescription}`;
         }
     };
 
@@ -126,7 +130,7 @@ export const setupTools = (server: McpServer, runtime: OpenWebSearchRuntime): vo
         engines: [SupportedSearchEngine, ...SupportedSearchEngine[]];
     };
 
-    const executeSearch = async ({query, limit, searchMode, engines}: SearchToolInput) => {
+    const executeSearch = async ({query, limit = 10, searchMode, engines}: SearchToolInput) => {
         try {
             const resolvedEngines = resolveRequestedEngines(
                 engines ?? [runtime.config.defaultSearchEngine],
@@ -159,6 +163,15 @@ export const setupTools = (server: McpServer, runtime: OpenWebSearchRuntime): vo
                 }]
             };
         } catch (error) {
+            if (error instanceof AllSearchEnginesFailedError) {
+                return {
+                    content: [{
+                        type: 'text' as const,
+                        text: JSON.stringify({ code: error.code, partialFailures: error.partialFailures })
+                    }],
+                    isError: true
+                };
+            }
             console.error('Search tool execution failed:', error);
             // 生效模式为 playwright 而配置无效：返回清晰错误，而非外层成功。
             const errorCode = (error as { code?: unknown })?.code;

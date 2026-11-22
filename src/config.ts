@@ -5,10 +5,11 @@ import { getSystemBrowserCandidates } from './utils/browserPaths.js';
 
 // src/config.ts
 import ipaddr from 'ipaddr.js';
+import { normalizeEngineName, SUPPORTED_SEARCH_ENGINES, type SupportedSearchEngine } from './core/search/searchEngines.js';
 
 export interface AppConfig {
     // Search engine configuration
-    defaultSearchEngine: 'bing' | 'duckduckgo' | 'exa' | 'brave' | 'baidu' | 'csdn' | 'linuxdo'  | 'juejin' | 'startpage' | 'sogou' | 'hackernews' | 'keenable';
+    defaultSearchEngine: SupportedSearchEngine;
     // List of allowed search engines (if empty, all engines are available)
     allowedSearchEngines: string[];
     // Search mode: request only, auto request then fallback, or force Playwright
@@ -45,10 +46,10 @@ const configRequire = createRequire(import.meta.url);
 // Read from environment variables or use defaults
 export const config: AppConfig = {
     // Search engine configuration
-    defaultSearchEngine: (process.env.DEFAULT_SEARCH_ENGINE as AppConfig['defaultSearchEngine']) || 'bing',
+    defaultSearchEngine: normalizeEngineName(process.env.DEFAULT_SEARCH_ENGINE || 'bing') as SupportedSearchEngine,
     // Parse comma-separated list of allowed search engines
     allowedSearchEngines: process.env.ALLOWED_SEARCH_ENGINES ?
-        process.env.ALLOWED_SEARCH_ENGINES.split(',').map(e => e.trim()) :
+        [...new Set(process.env.ALLOWED_SEARCH_ENGINES.split(',').map(normalizeEngineName).filter(Boolean))] :
         [],
     searchMode: (process.env.SEARCH_MODE as AppConfig['searchMode']) || 'auto',
     // Proxy configuration
@@ -74,7 +75,7 @@ export const config: AppConfig = {
 };
 
 // Valid search engines list
-const validSearchEngines = ['bing', 'duckduckgo', 'exa', 'brave', 'baidu', 'csdn', 'linuxdo', 'juejin', 'startpage', 'sogou', 'hackernews', 'keenable'];
+const validSearchEngines: readonly string[] = SUPPORTED_SEARCH_ENGINES;
 const validSearchModes = ['request', 'auto', 'playwright'];
 const validPlaywrightPackages = ['auto', 'playwright', 'playwright-core'];
 const quietStartupLogs = process.env.OPEN_WEBSEARCH_QUIET_STARTUP === 'true';
@@ -131,7 +132,7 @@ if ((config.playwrightWsEndpoint || config.playwrightCdpEndpoint) && config.play
 }
 
 // Validate allowed search engines
-if (config.allowedSearchEngines.length > 0) {
+if (process.env.ALLOWED_SEARCH_ENGINES?.trim()) {
     // Filter out invalid engines
     const invalidEngines = config.allowedSearchEngines.filter(engine => !validSearchEngines.includes(engine));
     if (invalidEngines.length > 0) {
@@ -139,9 +140,8 @@ if (config.allowedSearchEngines.length > 0) {
     }
     config.allowedSearchEngines = config.allowedSearchEngines.filter(engine => validSearchEngines.includes(engine));
 
-    // If all engines were invalid, don't restrict (allow all engines)
     if (config.allowedSearchEngines.length === 0) {
-        console.warn(`No valid search engines specified in the allowed list, all engines will be available`);
+        throw new Error('ALLOWED_SEARCH_ENGINES must contain at least one supported search engine');
     }
     // Check if default engine is in the allowed list
     else if (!config.allowedSearchEngines.includes(config.defaultSearchEngine)) {

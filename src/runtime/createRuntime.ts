@@ -1,4 +1,8 @@
 import { config, AppConfig } from '../config.js';
+import { searchBraveApi, searchExaApi } from '../engines/apiSearch.js';
+import { alternativeSearchApis } from '../engines/alternativeSearchApis.js';
+import { internationalSearchApis } from '../engines/internationalSearchApis.js';
+import { regionalSearchApis } from '../engines/regionalSearchApis.js';
 import { searchBaidu } from '../engines/baidu/baidu.js';
 import { searchBing } from '../engines/bing/bing.js';
 import { searchLinuxDo } from '../engines/linuxdo/linuxdo.js';
@@ -54,7 +58,12 @@ function createDefaultSearchExecutors(): SearchEngineExecutorMap {
         startpage: searchStartpage,
         sogou: searchSogou,
         hackernews: searchHackerNews,
-        keenable: searchKeenable
+        keenable: searchKeenable,
+        'exa-api': searchExaApi,
+        'brave-api': searchBraveApi,
+        ...alternativeSearchApis,
+        ...internationalSearchApis,
+        ...regionalSearchApis
     };
 }
 

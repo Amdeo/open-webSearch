@@ -5,6 +5,8 @@ import { AppConfig, checkPlaywrightModeConfiguration, getEffectiveSearchMode } f
 import { OpenWebSearchRuntime } from '../../runtime/runtimeTypes.js';
 import { createErrorEnvelope, createSuccessEnvelope } from '../../cli/protocol.js';
 import { normalizeEngineName, resolveRequestedEngines, SupportedSearchEngine } from '../../core/search/searchEngines.js';
+import { AllSearchEnginesFailedError } from '../../core/search/searchService.js';
+import { hasSearchApiCredentials } from '../../engines/searchApiClient.js';
 import { validatePublicWebUrl } from '../../core/validation/targetValidation.js';
 import { isBrowserUnavailableError, shutdownLocalPlaywrightBrowserSessions } from '../../utils/playwrightClient.js';
 
@@ -173,6 +175,9 @@ export async function startLocalDaemon(
     options: LocalDaemonOptions = {}
 ): Promise<LocalDaemonHandle> {
     const host = options.host ?? DEFAULT_HOST;
+    if (host !== '127.0.0.1' && host !== '::1' && hasSearchApiCredentials(runtime.config.allowedSearchEngines)) {
+        throw new Error('The local daemon must listen on 127.0.0.1 or ::1 when an enabled search engine has server-side credentials');
+    }
     const requestedPort = options.port ?? Number(process.env.OPEN_WEBSEARCH_DAEMON_PORT || DEFAULT_PORT);
     const version = options.version ?? 'unknown';
 
@@ -239,6 +244,10 @@ export async function startLocalDaemon(
             });
             res.json(createSuccessEnvelope(result));
         } catch (error) {
+            if (error instanceof AllSearchEnginesFailedError) {
+                sendError(res, 502, error.code, error.message, { details: { partialFailures: error.partialFailures } });
+                return;
+            }
             const message = error instanceof Error ? error.message : String(error);
             const errorCode = (error as { code?: unknown })?.code;
 
@@ -389,7 +398,7 @@ export async function startLocalDaemon(
         throw new Error('Failed to resolve local daemon address');
     }
 
-    baseUrl = `http://${host}:${address.port}`;
+    baseUrl = `http://${host === '::1' ? '[::1]' : host}:${address.port}`;
 
     return {
         host,

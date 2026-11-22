@@ -129,7 +129,7 @@ MCP工具支持：
     - hackernews
     - keenable
 - 支持HTTP代理配置，轻松解决网络访问限制
-- 无需API密钥或身份验证
+- 支持免 Key 搜索、可选搜索 API 和自建 SearXNG
 - 返回带标题、URL和描述的结构化结果
 - 可配置每次搜索返回的结果数量
 - 可自定义默认搜索引擎
@@ -137,6 +137,38 @@ MCP工具支持：
     - csdn
     - github（README文件）
     - 通用 HTTP(S) 网页 / Markdown 内容
+
+## 可选搜索 API 与自建实例
+
+在运行 MCP、CLI 或 HTTP 守护进程的环境中设置所需变量。MCP 和 HTTP 通过 `engines` 选引擎，CLI 使用 `--engine` 或 `--engines`。
+
+| 引擎 | 服务端环境变量 | 用途 |
+| --- | --- | --- |
+| `exa-api` | `EXA_API_KEY` | Exa 官方搜索与正文摘录 |
+| `brave-api` | `BRAVE_SEARCH_API_KEY` | Brave 官方网页搜索 |
+| `tavily` | `TAVILY_API_KEY`（可选） | 通用搜索。未配置 Key 时使用 Tavily 的匿名模式 |
+| `firecrawl` | `FIRECRAWL_API_KEY`（可选） | 默认搜网页。未配置 Key 时调用匿名 API。设 `FIRECRAWL_SEARCH_CATEGORY=developer` 可搜索开发索引 |
+| `you.com` | `YDC_API_KEY`（可选） | You.com 搜索。未配置 Key 时使用免费 MCP |
+| `tinyfish` | `TINYFISH_API_KEY` | TinyFish 网页搜索 |
+| `perplexity` | `PERPLEXITY_API_KEY` | 结构化网页搜索。可设 `PERPLEXITY_SEARCH_TYPE=fast`，默认 `web` |
+| `linkup` | `LINKUP_API_KEY` | Linkup 标准搜索 |
+| `kagi` | `KAGI_API_KEY` | Kagi Search API |
+| `serper` | `SERPER_API_KEY` | 第三方 Google 搜索结果 |
+| `serpapi` | `SERPAPI_API_KEY` | 第三方 Google 搜索结果 |
+| `deepseek` | `DEEPSEEK_API_KEY` | DeepSeek 独立搜索 API |
+| `doubao` | `DOUBAO_SEARCH_API_KEY` | 火山引擎豆包搜索 Custom 版 |
+| `yuanbao` | `YUANBAO_SEARCH_API_KEY` | 腾讯云元宝 `SearchPro`。极速版设置 `YUANBAO_SEARCH_SPEED=true` |
+| `zhipu` | `ZHIPUAI_API_KEY` | 智谱搜索。`ZHIPU_SEARCH_ENGINE` 可选 `search_std`（默认）、`search_pro`、`search_pro_sogou` 或 `search_pro_quark` |
+| `baidu-api` | `QIANFAN_API_KEY` | 千帆百度搜索 |
+| `bocha` | `BOCHA_API_KEY` | 博查网页搜索 |
+| `aliyun-iqs` | `ALIYUN_IQS_API_KEY` | 阿里云 IQS 通用网页搜索 |
+| `searxng` | `SEARXNG_URL`，可选 `SEARXNG_API_KEY` | 自建 SearXNG。实例须启用 `json` 输出，配置 Key 时发送 Bearer 鉴权 |
+
+搜索示例为 `{"query":"SQLite WAL 文档","engines":["deepseek","tavily","bing"],"limit":5}`。引擎缺 Key 时报告 `missing_api_key`，查询超过该引擎的长度限制时报告 `query_too_long`。有引擎完成搜索时仍会返回结果和逐路错误，全部失败时返回 `all_engines_failed` 及每路错误。
+
+只要启用的搜索引擎配置了服务端 Key，HTTP MCP 就必须设置 `MCP_HTTP_AUTH_TOKEN`。客户端每次请求通过 `Authorization: Bearer <token>` 发送同一个令牌，并且使用 HTTPS。反向代理与项目部署在同一台机器时，可将 `MCP_HTTP_HOST` 设为 `127.0.0.1`，并让代理转发 `Authorization`。缺少令牌时，`MODE=http` 启动失败，`MODE=both` 仅启动 stdio。有 Key 的本地 CLI 守护进程仅允许监听 `127.0.0.1` 或 `::1`。
+
+`SEARXNG_URL` 填实例基地址，可包含部署子路径。服务直接连接该实例，保留配置的 HTTP(S) 协议。缺少配置或上游请求失败时，可在 `partialFailures` 查看对应的引擎和错误。
 
 ## 选择合适的入口
 
@@ -263,14 +295,15 @@ npx cross-env DEFAULT_SEARCH_ENGINE=duckduckgo ENABLE_CORS=true open-websearch
 |--------|-------------------------|--------|--------------------------------------|
 | `ENABLE_CORS` | `false`                 | `true`, `false` | 启用CORS                               |
 | `CORS_ORIGIN` | `*`                     | 任何有效来源 | CORS来源配置                             |
-| `DEFAULT_SEARCH_ENGINE` | `bing`                  | `bing`, `duckduckgo`, `exa`, `brave`, `baidu`, `csdn`, `linuxdo`, `juejin`, `startpage`, `sogou`, `hackernews`, `keenable` | 默认搜索引擎                               |
+| `DEFAULT_SEARCH_ENGINE` | `bing` | 免 Key 引擎或上述可选引擎的 ID | 默认搜索引擎 |
 | `USE_PROXY` | `false`                 | `true`, `false` | 启用HTTP代理                             |
 | `PROXY_URL` | `http://127.0.0.1:7890` | 任何有效URL | 代理服务器URL                             |
 | `FETCH_WEB_INSECURE_TLS` | `false` | `true`, `false` | 仅对 `fetchWebContent` 的请求路径关闭 TLS 校验，不影响 Playwright 浏览器导航。只建议在证书链异常时临时使用 |
 | `MODE` | `both`                  | `both`, `http`, `stdio` | 服务器模式：同时支持HTTP+STDIO、仅HTTP或仅STDIO    |
 | `MCP_HTTP_HOST` | `0.0.0.0` | 监听地址 | 在同机反向代理后可设为 `127.0.0.1`。 |
+| `MCP_HTTP_AUTH_TOKEN` | 空 | 独立生成的访问令牌 | 设置后所有 HTTP MCP 请求均须提供 Bearer 令牌。启用的引擎配置了服务端 Key 时必填。 |
 | `PORT` | `3000`                  | 1-65535 | 服务器端口                                |
-| `ALLOWED_SEARCH_ENGINES` | 空（全部可用） | 逗号分隔的引擎名称 | 限制可使用的搜索引擎，如默认搜索引擎不在范围，则默认第一个为默认搜索引擎 |
+| `ALLOWED_SEARCH_ENGINES` | 空（全部可用） | 逗号分隔的引擎名称 | 支持与工具参数相同的别名。显式配置的名单没有有效项时拒绝启动。若默认引擎不在名单内，则使用第一个有效引擎。 |
 | `SEARCH_MODE` | `auto` | `request`, `auto`, `playwright` | 搜索策略，当前仅对 Bing 生效：强制 HTTP 请求模式（`request`）、强制 Playwright 模式（`playwright`）、或允许 Agent 选择模式（`auto`，默认）。强制模式不向 Agent 暴露 `searchMode` 参数。`auto` 模式下服务端会检查 Playwright 是否真实可用（客户端模块可真实加载，本地启动时还需浏览器二进制真实存在：显式 `PLAYWRIGHT_EXECUTABLE_PATH`、捆绑浏览器或系统 Chrome/Edge）；可用时搜索工具暴露 `searchMode` 参数，并引导 Agent 保持默认 `auto`、仅在 request 结果失败或异常时再重试 `playwright`，不可用时按强制请求模式处理。强制 `playwright` 但不可用时，搜索返回 `browser_unavailable` 错误 |
 | `PLAYWRIGHT_PACKAGE` | `auto` | `auto`, `playwright`, `playwright-core` | 启用浏览器模式时优先解析哪种 Playwright 客户端包 |
 | `PLAYWRIGHT_MODULE_PATH` | 空 | 绝对路径或相对项目根目录路径 | 复用当前项目外部已经存在的 Playwright 客户端包 |
@@ -438,7 +471,7 @@ Windows 下的 NPX 配置：
 
 代理与 TLS 说明：
 - open-websearch 现在会在内部显式关闭 Axios 对环境变量代理的自动读取，只走 `USE_PROXY` + `PROXY_URL` 这条显式代理路径。
-- 当 `USE_PROXY=true` 时，所有基于 Axios 的网络请求都会统一走配置的 `PROXY_URL` 路径，不再出现一部分请求直连、一部分请求读取环境变量代理的混合行为。
+- 当 `USE_PROXY=true` 时，基于 Axios 的网络请求和 You.com 免费 MCP 使用 `PROXY_URL`。自建 SearXNG 始终直连配置的实例。
 - 如果 `PROXY_URL` 指向的是本地规则代理客户端，该客户端仍然可以自行决定哪些目标走 `DIRECT`、哪些目标走代理。
 - 如果 `PROXY_URL` 指向固定上游代理或固定出口，百度、CSDN、掘金、Linux.do、GitHub 这类对地区较敏感的站点表现可能会和之前不同。
 - 如果系统里已经设置了 `HTTP_PROXY` 或 `HTTPS_PROXY`，它们不再覆盖服务器内部请求行为。

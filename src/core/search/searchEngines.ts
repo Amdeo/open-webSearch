@@ -10,7 +10,26 @@ export const SUPPORTED_SEARCH_ENGINES = [
     'startpage',
     'sogou',
     'hackernews',
-    'keenable'
+    'keenable',
+    'exa-api',
+    'brave-api',
+    'tavily',
+    'firecrawl',
+    'you.com',
+    'searxng',
+    'deepseek',
+    'doubao',
+    'yuanbao',
+    'tinyfish',
+    'perplexity',
+    'linkup',
+    'kagi',
+    'serper',
+    'serpapi',
+    'zhipu',
+    'baidu-api',
+    'bocha',
+    'aliyun-iqs'
 ] as const;
 
 export type SupportedSearchEngine = typeof SUPPORTED_SEARCH_ENGINES[number];
@@ -34,6 +53,21 @@ export function normalizeEngineName(engine: string): string {
             return 'exa';
         case 'brave':
             return 'brave';
+        case 'exaapi':
+            return 'exa-api';
+        case 'braveapi':
+            return 'brave-api';
+        case 'you':
+        case 'youcom':
+            return 'you.com';
+        case 'baiduapi':
+            return 'baidu-api';
+        case 'aliyuniqs':
+            return 'aliyun-iqs';
+        case 'volcengine':
+            return 'doubao';
+        case 'wsa':
+            return 'yuanbao';
         case 'juejin':
             return 'juejin';
         case 'startpage':

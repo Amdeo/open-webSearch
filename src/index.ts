@@ -6,7 +6,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import express from 'express';
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js"
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import cors from 'cors';
 import type { CorsOptions } from 'cors';
 import { runCli } from './cli/runCli.js';
@@ -91,15 +91,22 @@ async function main() {
 
   // Only set up HTTP server if enabled
   if (config.enableHttpServer) {
+    const token = process.env.MCP_HTTP_AUTH_TOKEN?.trim();
+    const { hasSearchApiCredentials } = await import('./engines/searchApiClient.js');
+    if (!token && hasSearchApiCredentials(config.allowedSearchEngines)) {
+      console.error('HTTP MCP requires MCP_HTTP_AUTH_TOKEN when an enabled search engine has server-side credentials.');
+      if (process.env.MODE === 'http') process.exitCode = 1;
+      return;
+    }
+
     console.error('🔌 Starting HTTP server...');
     // 创建 Express 应用
     const app = express();
-    app.use(express.json());
 
     const mcpCorsOptions: CorsOptions = {
       origin: config.corsOrigin || '*',
       methods: ['GET', 'POST', 'DELETE'],
-      allowedHeaders: ['Content-Type', 'Mcp-Session-Id', 'Mcp-Protocol-Version'],
+      allowedHeaders: ['Authorization', 'Content-Type', 'Mcp-Session-Id', 'Mcp-Protocol-Version'],
       exposedHeaders: ['Mcp-Session-Id'],
     };
 
@@ -107,6 +114,19 @@ async function main() {
     if (config.enableCors) {
       app.use(cors(mcpCorsOptions));
     }
+
+    if (token) {
+      const expected = Buffer.from(token);
+      app.use((req, res, next) => {
+        const supplied = Buffer.from(/^Bearer (.+)$/i.exec(req.get('Authorization') ?? '')?.[1] ?? '');
+        if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) {
+          res.set('WWW-Authenticate', 'Bearer').status(401).json({ error: 'Unauthorized' });
+          return;
+        }
+        next();
+      });
+    }
+    app.use(express.json());
 
     // Store transports for each session type
     const transports = {
@@ -259,12 +279,16 @@ async function main() {
     // Read the port number from the environment variable; use the default port 3000 if it is not set.
     const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-    app.listen(PORT, process.env.MCP_HTTP_HOST || '0.0.0.0', () => {
-      console.error(`✅ HTTP server running on port ${PORT}`)
+    const listener = app.listen(PORT, process.env.MCP_HTTP_HOST || '0.0.0.0', () => {
+      const address = listener.address();
+      console.error(`✅ HTTP server running on port ${typeof address === 'object' && address ? address.port : PORT}`);
     });
   } else {
     console.error('ℹ️ HTTP server disabled, running in STDIO mode only')
   }
 }
 
-main().catch(console.error);
+main().catch(error => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});

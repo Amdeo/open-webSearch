@@ -61,7 +61,26 @@ function testNormalizeEngineName(): void {
         'startpage',
         'sogou',
         'hackernews',
-        'keenable'
+        'keenable',
+        'exa-api',
+        'brave-api',
+        'tavily',
+        'firecrawl',
+        'you.com',
+        'searxng',
+        'deepseek',
+        'doubao',
+        'yuanbao',
+        'tinyfish',
+        'perplexity',
+        'linkup',
+        'kagi',
+        'serper',
+        'serpapi',
+        'zhipu',
+        'baidu-api',
+        'bocha',
+        'aliyun-iqs'
     ], 'supported engines list');
     console.log('✅ normalizeEngineName and supported engines');
 }
@@ -163,7 +182,7 @@ async function testMultiEngineMerge(): Promise<void> {
 
 async function testMultiEngineFailuresAndSingleEngine(): Promise<void> {
     const service = createSearchService({
-        bing: async (_query, limit) => Array.from({ length: limit }, (_, index) => createResult('bing', index + 1)),
+        bing: async (query, limit) => query === 'empty' ? [] : Array.from({ length: limit }, (_, index) => createResult('bing', index + 1)),
         startpage: async () => { throw new Error('blocked'); }
     });
     const result = await service.execute({ query: 'test', engines: ['bing', 'startpage', 'missing'], limit: 3 });
@@ -172,6 +191,9 @@ async function testMultiEngineFailuresAndSingleEngine(): Promise<void> {
     const single = await service.execute({ query: 'test', engines: ['bing'], limit: 2 });
     assertEqualArray(single.results.map(item => item.engine), ['bing', 'bing'], 'retains single-engine result fields and order');
     assertEqualArray((single.results[0] as SearchResult & { engines: string[] }).engines, ['bing'], 'marks single-engine result');
+    const empty = await service.execute({ query: 'empty', engines: ['bing', 'startpage'], limit: 2 });
+    assertEqual(empty.totalResults, 0, 'a successful empty result is not an all-engines failure');
+    assertEqualArray(empty.partialFailures.map(failure => failure.engine), ['startpage'], 'keeps failures alongside a successful empty result');
 }
 
 async function testSearchServiceAutoModeUsesRuntimeDefault(): Promise<void> {

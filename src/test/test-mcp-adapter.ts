@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { AppConfig } from '../config.js';
 import { createOpenWebSearchRuntime } from '../runtime/createRuntime.js';
@@ -466,6 +466,20 @@ function testCustomToolNamesAndFallbacks(): void {
 }
 
 function testConfigDrivenEngineSelectionAndMode(): void {
+    const aliasOutput = runModuleWithEnv(
+        "const { config } = await import('./build/config.js'); console.log(JSON.stringify({ defaultSearchEngine: config.defaultSearchEngine, allowedSearchEngines: config.allowedSearchEngines }));",
+        { DEFAULT_SEARCH_ENGINE: 'You.com', ALLOWED_SEARCH_ENGINES: 'You.com, Brave API, you' }
+    );
+    const aliasConfig = parseJsonBlock(aliasOutput) as { defaultSearchEngine: string; allowedSearchEngines: string[] };
+    assertEqual(aliasConfig.defaultSearchEngine, 'you.com', 'default engine aliases should be normalized');
+    assertEqual(aliasConfig.allowedSearchEngines.join(','), 'you.com,brave-api', 'allowlist aliases should be normalized and deduplicated');
+    const invalid = spawnSync(process.execPath, ['--input-type=module', '-e', "await import('./build/config.js');"], {
+        env: { ...process.env, ALLOWED_SEARCH_ENGINES: 'invalid-engine' },
+        encoding: 'utf8'
+    });
+    assertEqual(invalid.status, 1, 'an explicitly invalid allowlist should fail startup');
+    assert(invalid.stderr.includes('ALLOWED_SEARCH_ENGINES'), 'invalid allowlist should name the setting');
+
     const configOutput = runModuleWithEnv(
         `
             const { config, getProxyUrl } = await import('./build/config.js');

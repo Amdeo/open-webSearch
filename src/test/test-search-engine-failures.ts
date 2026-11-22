@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { config } from '../config.js';
-import { createSearchService } from '../core/search/searchService.js';
+import { AllSearchEnginesFailedError, createSearchService } from '../core/search/searchService.js';
 import { searchExa } from '../engines/exa/exa.js';
 import { searchDuckDuckGo } from '../engines/duckduckgo/searchDuckDuckGo.js';
 import { searchJuejin } from '../engines/juejin/juejin.js';
@@ -21,6 +21,11 @@ async function main(): Promise<void> {
     };
     const service = createSearchService({ exa: searchExa, duckduckgo: searchDuckDuckGo, juejin: searchJuejin, linuxdo: searchLinuxDo });
     const execute = (engine: string) => service.execute({ query: 'test', engines: [engine], limit: 2 });
+    const getFailure = async (search: ReturnType<typeof execute>) => {
+        const error = await search.catch((caught: unknown) => caught);
+        assert(error instanceof AllSearchEnginesFailedError, 'a search whose engines all fail must reject');
+        return error;
+    };
     const reject = async () => { throw new Error('offline failure'); };
     const respond = (data: unknown) => Promise.resolve({ data, status: 200, statusText: 'OK', headers: {}, config: {} });
 
@@ -30,18 +35,18 @@ async function main(): Promise<void> {
         for (const engine of ['exa', 'duckduckgo', 'juejin', 'linuxdo']) {
             await check(`${engine} terminal network failure`, async () => {
                 config.defaultSearchEngine = 'brave';
-                const result = await execute(engine);
+                const result = await getFailure(execute(engine));
                 assert(result.partialFailures.length === 1 && result.partialFailures[0].engine === engine, 'failure must reach partialFailures');
             });
         }
         await check('multiple failed engines are all reported', async () => {
             config.defaultSearchEngine = 'duckduckgo';
-            const result = await service.execute({ query: 'test', engines: ['exa', 'duckduckgo', 'juejin', 'linuxdo'], limit: 2 });
+            const result = await getFailure(service.execute({ query: 'test', engines: ['exa', 'duckduckgo', 'juejin', 'linuxdo'], limit: 2 }));
             assert(result.partialFailures.map(failure => failure.engine).sort().join(',') === 'duckduckgo,exa,juejin,linuxdo', 'all terminal failures must be reported');
         });
         await check('juejin business error', async () => {
             axios.get = (() => respond({ err_no: 42, err_msg: 'business failure' })) as typeof axios.get;
-            const result = await execute('juejin');
+            const result = await getFailure(execute('juejin'));
             assert(result.partialFailures.length === 1 && result.partialFailures[0].message.includes('business failure'), 'business error must reach partialFailures');
         });
         await check('empty results remain successful', async () => {

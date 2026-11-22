@@ -10,9 +10,17 @@ export type SearchEngineExecutorMap = Partial<Record<string, SearchEngineExecuto
 
 export type SearchExecutionFailure = {
     engine: string;
-    code: 'engine_error' | 'unsupported_engine' | 'browser_unavailable';
+    code: 'engine_error' | 'unsupported_engine' | 'browser_unavailable' | 'missing_api_key' | 'api_http_error' | 'query_too_long';
     message: string;
 };
+
+export class AllSearchEnginesFailedError extends Error {
+    readonly code = 'all_engines_failed';
+
+    constructor(readonly partialFailures: SearchExecutionFailure[]) {
+        super(['All search engines failed', ...partialFailures.map(failure => `${failure.engine}: ${failure.message}`)].join('\n'));
+    }
+}
 
 export type SearchExecutionResult = {
     query: string;
@@ -41,12 +49,14 @@ function classifyEngineError(error: unknown): SearchExecutionFailure['code'] {
 
 export function createSearchService(engineMap: SearchEngineExecutorMap) {
     return {
-        async execute({ query, engines, limit, searchMode }: SearchExecutionInput): Promise<SearchExecutionResult> {
+        async execute({ query, engines: requestedEngines, limit: requestedLimit, searchMode }: SearchExecutionInput): Promise<SearchExecutionResult> {
             const cleanQuery = query.trim();
             if (!cleanQuery) {
                 throw new Error('Query string cannot be empty');
             }
 
+            const limit = Math.floor(requestedLimit);
+            const engines = [...new Set(requestedEngines)];
             const partialFailures: SearchExecutionFailure[] = [];
             const effectiveSearchMode = resolveSearchModeOverride(searchMode);
 
@@ -79,6 +89,9 @@ export function createSearchService(engineMap: SearchEngineExecutorMap) {
             });
 
             const engineResults = await Promise.all(tasks);
+            if (engines.length > 0 && partialFailures.length === engines.length) {
+                throw new AllSearchEnginesFailedError(partialFailures);
+            }
             const merged = new Map<string, SearchResult & { engines: string[] }>();
             const maxLength = Math.max(0, ...engineResults.map(items => items.length));
             for (let index = 0; index < maxLength; index++) {

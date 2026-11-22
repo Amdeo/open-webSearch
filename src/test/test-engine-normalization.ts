@@ -1,26 +1,11 @@
 import { z } from 'zod';
-import { normalizeEngineName } from '../tools/setupTools.js';
-
-const SUPPORTED_ENGINES = [
-    'baidu',
-    'bing',
-    'linuxdo',
-    'csdn',
-    'duckduckgo',
-    'exa',
-    'brave',
-    'juejin',
-    'startpage',
-    'sogou',
-    'hackernews',
-    'keenable'
-] as const;
+import { normalizeEngineName, SUPPORTED_SEARCH_ENGINES } from '../core/search/searchEngines.js';
 
 const engineSchema = z.array(
     z.string()
         .min(1)
         .transform(normalizeEngineName)
-        .pipe(z.enum(SUPPORTED_ENGINES))
+        .pipe(z.enum(SUPPORTED_SEARCH_ENGINES))
 ).min(1);
 
 type SuccessCase = {
@@ -47,7 +32,9 @@ const successCases: SuccessCase[] = [
     { input: ['Hacker News'], expected: ['hackernews'] },
     { input: ['hacker-news'], expected: ['hackernews'] },
     { input: ['hn'], expected: ['hackernews'] },
-    { input: ['Keenable'], expected: ['keenable'] }
+    { input: ['Keenable'], expected: ['keenable'] },
+    { input: ['You.com', 'Volcengine', 'WSA'], expected: ['you.com', 'doubao', 'yuanbao'] },
+    { input: ['Baidu API', 'Aliyun IQS'], expected: ['baidu-api', 'aliyun-iqs'] }
 ];
 
 const failureCases: FailureCase[] = [

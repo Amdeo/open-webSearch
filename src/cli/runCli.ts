@@ -1,4 +1,5 @@
 import { SupportedSearchEngine, normalizeEngineName, resolveRequestedEngines } from '../core/search/searchEngines.js';
+import { AllSearchEnginesFailedError } from '../core/search/searchService.js';
 import { OpenWebSearchRuntime } from '../runtime/runtimeTypes.js';
 import { CliEnvelope, createErrorEnvelope, createSuccessEnvelope } from './protocol.js';
 import { startLocalDaemon } from '../adapters/http/localDaemon.js';
@@ -944,11 +945,15 @@ export async function runCli(
             return 0;
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
+            const searchFailure = error instanceof AllSearchEnginesFailedError ? error : undefined;
             if (parsed.json) {
                 io.stdout(JSON.stringify(createErrorEnvelope(
-                    getDaemonCliErrorCode(error),
+                    searchFailure?.code ?? getDaemonCliErrorCode(error),
                     message,
-                    { hint: getDaemonCliErrorHint(error) }
+                    {
+                        hint: getDaemonCliErrorHint(error),
+                        details: searchFailure && { partialFailures: searchFailure.partialFailures }
+                    }
                 ), null, 2));
             } else {
                 io.stderr(`${getDaemonCliErrorLabel(error, 'Search failed')}: ${message}`);
