@@ -206,6 +206,7 @@ npx cross-env DEFAULT_SEARCH_ENGINE=duckduckgo ENABLE_CORS=true open-websearch
 | `ENABLE_CORS` | `false`                 | `true`, `false` | Enable CORS |
 | `CORS_ORIGIN` | `*`                     | Any valid origin | CORS origin configuration |
 | `DEFAULT_SEARCH_ENGINE` | `bing` | Built-in or optional search engine ID | Default search engine |
+| `DEFAULT_SEARCH_ENGINES` | empty | Comma-separated engine names | Default engine combination used when a search request omits `engines`. When set without `DEFAULT_SEARCH_ENGINE`, its first entry becomes the singular default. Entries outside `ALLOWED_SEARCH_ENGINES` are ignored. |
 | `USE_PROXY` | `false`                 | `true`, `false` | Enable HTTP proxy |
 | `PROXY_URL` | `http://127.0.0.1:7890` | Any valid URL | Proxy server URL |
 | `FAKE_IP_CIDRS` | empty | Comma-separated CIDR list | Treat DNS answers in these CIDRs as synthetic fake-IP results and do not block them as private-network DNS answers. Literal private/local targets and other private-network DNS answers remain blocked |

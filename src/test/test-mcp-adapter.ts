@@ -50,6 +50,7 @@ function createStubRuntime() {
 function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     return {
         defaultSearchEngine: 'bing',
+        defaultSearchEngines: ['bing'],
         allowedSearchEngines: [],
         searchMode: 'request',
         proxyUrl: '',
@@ -126,6 +127,7 @@ async function testSetupToolsUsesRuntimeConfigDefaults(): Promise<void> {
     const runtime = createOpenWebSearchRuntime({
         config: createTestConfig({
             defaultSearchEngine: 'startpage',
+            defaultSearchEngines: ['startpage', 'bing'],
             allowedSearchEngines: ['startpage', 'bing', 'sogou']
         }),
         dependencies: {
@@ -187,8 +189,8 @@ async function testSetupToolsUsesRuntimeConfigDefaults(): Promise<void> {
         results: Array<{ engine: string }>;
     };
 
-    assertEqual(payload.engines[0], 'startpage', 'search handler should use runtime default engine');
-    assertEqual(payload.results[0].engine, 'startpage', 'search execution should respect runtime default engine');
+    assertEqual(payload.engines.join(','), 'startpage,bing', 'search handler should use runtime default engine combination');
+    assert(payload.results.some((result) => result.engine === 'bing'), 'search execution should include every default engine');
     assert(tools.search.description.includes('Startpage'), 'search description should use runtime-config allowed engines');
     assert(tools.search.description.includes('Sogou'), 'search description should include Sogou when allowed');
 
@@ -473,6 +475,13 @@ function testConfigDrivenEngineSelectionAndMode(): void {
     const aliasConfig = parseJsonBlock(aliasOutput) as { defaultSearchEngine: string; allowedSearchEngines: string[] };
     assertEqual(aliasConfig.defaultSearchEngine, 'you.com', 'default engine aliases should be normalized');
     assertEqual(aliasConfig.allowedSearchEngines.join(','), 'you.com,brave-api', 'allowlist aliases should be normalized and deduplicated');
+    const comboOutput = runModuleWithEnv(
+        "const { config } = await import('./build/config.js'); console.log(JSON.stringify({ defaultSearchEngine: config.defaultSearchEngine, defaultSearchEngines: config.defaultSearchEngines, allowedSearchEngines: config.allowedSearchEngines }));",
+        { DEFAULT_SEARCH_ENGINES: 'Brave API, Exa API', ALLOWED_SEARCH_ENGINES: 'brave-api,exa-api' }
+    );
+    const comboConfig = parseJsonBlock(comboOutput) as { defaultSearchEngine: string; defaultSearchEngines: string[]; allowedSearchEngines: string[] };
+    assertEqual(comboConfig.defaultSearchEngines.join(','), 'brave-api,exa-api', 'default engine combination aliases should be normalized');
+    assertEqual(comboConfig.defaultSearchEngine, 'brave-api', 'a combination without DEFAULT_SEARCH_ENGINE should use its first engine');
     const invalid = spawnSync(process.execPath, ['--input-type=module', '-e', "await import('./build/config.js');"], {
         env: { ...process.env, ALLOWED_SEARCH_ENGINES: 'invalid-engine' },
         encoding: 'utf8'

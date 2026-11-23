@@ -11,6 +11,7 @@ function assert(condition: unknown, message: string): asserts condition {
 function createTestConfig(): AppConfig {
     return {
         defaultSearchEngine: 'bing',
+        defaultSearchEngines: ['bing'],
         allowedSearchEngines: [],
         searchMode: 'request',
         proxyUrl: 'http://127.0.0.1:7890',

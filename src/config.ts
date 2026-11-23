@@ -10,6 +10,7 @@ import { normalizeEngineName, SUPPORTED_SEARCH_ENGINES, type SupportedSearchEngi
 export interface AppConfig {
     // Search engine configuration
     defaultSearchEngine: SupportedSearchEngine;
+    defaultSearchEngines: SupportedSearchEngine[];
     // List of allowed search engines (if empty, all engines are available)
     allowedSearchEngines: string[];
     // Search mode: request only, auto request then fallback, or force Playwright
@@ -47,6 +48,9 @@ const configRequire = createRequire(import.meta.url);
 export const config: AppConfig = {
     // Search engine configuration
     defaultSearchEngine: normalizeEngineName(process.env.DEFAULT_SEARCH_ENGINE || 'bing') as SupportedSearchEngine,
+    defaultSearchEngines: process.env.DEFAULT_SEARCH_ENGINES ?
+        [...new Set(process.env.DEFAULT_SEARCH_ENGINES.split(',').map(normalizeEngineName).filter(Boolean))] as SupportedSearchEngine[] :
+        [],
     // Parse comma-separated list of allowed search engines
     allowedSearchEngines: process.env.ALLOWED_SEARCH_ENGINES ?
         [...new Set(process.env.ALLOWED_SEARCH_ENGINES.split(',').map(normalizeEngineName).filter(Boolean))] :
@@ -84,6 +88,17 @@ const quietStartupLogs = process.env.OPEN_WEBSEARCH_QUIET_STARTUP === 'true';
 if (!validSearchEngines.includes(config.defaultSearchEngine)) {
     console.warn(`Invalid DEFAULT_SEARCH_ENGINE: "${config.defaultSearchEngine}", falling back to "bing"`);
     config.defaultSearchEngine = 'bing';
+}
+const rawDefaultSearchEngines = config.defaultSearchEngines;
+config.defaultSearchEngines = rawDefaultSearchEngines.filter(engine => validSearchEngines.includes(engine));
+if (config.defaultSearchEngines.length !== rawDefaultSearchEngines.length) {
+    console.warn(`Invalid DEFAULT_SEARCH_ENGINES entries will be ignored: ${rawDefaultSearchEngines.filter(engine => !validSearchEngines.includes(engine)).join(', ')}`);
+}
+if (config.defaultSearchEngines.length === 0) {
+    config.defaultSearchEngines = [config.defaultSearchEngine];
+}
+if (process.env.DEFAULT_SEARCH_ENGINES?.trim() && !process.env.DEFAULT_SEARCH_ENGINE?.trim()) {
+    config.defaultSearchEngine = config.defaultSearchEngines[0];
 }
 
 if (!validSearchModes.includes(config.searchMode)) {
@@ -143,11 +158,20 @@ if (process.env.ALLOWED_SEARCH_ENGINES?.trim()) {
     if (config.allowedSearchEngines.length === 0) {
         throw new Error('ALLOWED_SEARCH_ENGINES must contain at least one supported search engine');
     }
-    // Check if default engine is in the allowed list
-    else if (!config.allowedSearchEngines.includes(config.defaultSearchEngine)) {
-        console.warn(`Default search engine "${config.defaultSearchEngine}" is not in the allowed engines list`);
-        // Update the default engine to the first allowed engine
-        config.defaultSearchEngine = config.allowedSearchEngines[0] as AppConfig['defaultSearchEngine'];
+
+    const allowedDefaults = config.defaultSearchEngines.filter(engine => config.allowedSearchEngines.includes(engine));
+    if (allowedDefaults.length !== config.defaultSearchEngines.length) {
+        console.warn(`Some default search engines are not in the allowed engines list and will be ignored: ${config.defaultSearchEngines.filter(engine => !config.allowedSearchEngines.includes(engine)).join(', ')}`);
+    }
+    if (allowedDefaults.length === 0) {
+        config.defaultSearchEngines = [config.allowedSearchEngines[0] as SupportedSearchEngine];
+        console.warn(`No default search engines are allowed; falling back to "${config.defaultSearchEngines[0]}"`);
+    } else {
+        config.defaultSearchEngines = [...new Set(allowedDefaults)];
+    }
+
+    if (!config.allowedSearchEngines.includes(config.defaultSearchEngine)) {
+        config.defaultSearchEngine = config.defaultSearchEngines[0];
         console.error(`Default search engine updated to "${config.defaultSearchEngine}"`);
     }
 }
@@ -155,6 +179,9 @@ if (process.env.ALLOWED_SEARCH_ENGINES?.trim()) {
 if (!quietStartupLogs) {
     // Log configuration
     console.error(`🔍 Default search engine: ${config.defaultSearchEngine}`);
+    if (config.defaultSearchEngines.length > 1 || config.defaultSearchEngines[0] !== config.defaultSearchEngine) {
+        console.error(`🔍 Default search engines: ${config.defaultSearchEngines.join(', ')}`);
+    }
     if (config.allowedSearchEngines.length > 0) {
         console.error(`🔍 Allowed search engines: ${config.allowedSearchEngines.join(', ')}`);
     } else {

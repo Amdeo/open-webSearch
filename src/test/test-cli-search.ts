@@ -24,6 +24,7 @@ function assertEqual<T>(actual: T, expected: T, label: string): void {
 function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     return {
         defaultSearchEngine: 'bing',
+        defaultSearchEngines: ['bing'],
         allowedSearchEngines: [],
         searchMode: 'request',
         proxyUrl: 'http://127.0.0.1:7890',
@@ -105,6 +106,7 @@ async function withEnv<T>(key: string, value: string | undefined, callback: () =
 function testParseSearchArgs(): void {
     const runtime = createStubRuntime({
         defaultSearchEngine: 'duckduckgo',
+        defaultSearchEngines: ['duckduckgo'],
         allowedSearchEngines: ['bing', 'startpage']
     });
     const parsed = parseSearchArgs(
@@ -127,6 +129,7 @@ function testParseSearchArgs(): void {
         ['Open', 'WebSearch', '--engine', 'sou-gou'],
         createStubRuntime({
             defaultSearchEngine: 'sogou',
+            defaultSearchEngines: ['sogou'],
             allowedSearchEngines: ['sogou']
         })
     );
@@ -136,6 +139,7 @@ function testParseSearchArgs(): void {
         ['Open', 'WebSearch', '--engine', 'Hacker News'],
         createStubRuntime({
             defaultSearchEngine: 'hackernews',
+            defaultSearchEngines: ['hackernews'],
             allowedSearchEngines: ['hackernews']
         })
     );

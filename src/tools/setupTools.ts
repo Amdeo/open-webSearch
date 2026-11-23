@@ -110,7 +110,7 @@ export const setupTools = (server: McpServer, runtime: OpenWebSearchRuntime): vo
         .describe('Optional search mode override. Start with the default auto (or omit searchMode); only retry with playwright when the request-based results fail, come back empty, or are clearly blocked or low-quality.')
         .optional();
 
-    const enginesInputSchema = z.array(getEngineInputSchema()).min(1).default([runtime.config.defaultSearchEngine])
+    const enginesInputSchema = z.array(getEngineInputSchema()).min(1).default(runtime.config.defaultSearchEngines)
         .transform(requestedEngines => resolveRequestedEngines(
             requestedEngines,
             runtime.config.allowedSearchEngines,
@@ -133,7 +133,7 @@ export const setupTools = (server: McpServer, runtime: OpenWebSearchRuntime): vo
     const executeSearch = async ({query, limit = 10, searchMode, engines}: SearchToolInput) => {
         try {
             const resolvedEngines = resolveRequestedEngines(
-                engines ?? [runtime.config.defaultSearchEngine],
+                engines ?? runtime.config.defaultSearchEngines,
                 runtime.config.allowedSearchEngines,
                 runtime.config.defaultSearchEngine
             ) as [SupportedSearchEngine, ...SupportedSearchEngine[]];

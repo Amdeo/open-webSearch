@@ -25,6 +25,7 @@ export type LocalDaemonStatus = {
     baseUrl: string;
     configSummary: {
         defaultSearchEngine: string;
+        defaultSearchEngines: string[];
         allowedSearchEngines: string[];
         searchMode: string;
         effectiveSearchMode: string;
@@ -74,7 +75,7 @@ function sendError(
 
 function parseRequestedEngines(runtime: OpenWebSearchRuntime, engines: unknown): SupportedSearchEngine[] {
     if (engines === undefined) {
-        return [runtime.config.defaultSearchEngine as SupportedSearchEngine];
+        return runtime.config.defaultSearchEngines as SupportedSearchEngine[];
     }
 
     if (!Array.isArray(engines) || engines.some((engine) => typeof engine !== 'string')) {
@@ -197,6 +198,7 @@ export async function startLocalDaemon(
             baseUrl,
             configSummary: {
                 defaultSearchEngine: runtime.config.defaultSearchEngine,
+                defaultSearchEngines: runtime.config.defaultSearchEngines,
                 allowedSearchEngines: runtime.config.allowedSearchEngines,
                 searchMode: runtime.config.searchMode,
                 effectiveSearchMode: getEffectiveSearchMode(runtime.config),

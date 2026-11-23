@@ -296,6 +296,7 @@ npx cross-env DEFAULT_SEARCH_ENGINE=duckduckgo ENABLE_CORS=true open-websearch
 | `ENABLE_CORS` | `false`                 | `true`, `false` | 启用CORS                               |
 | `CORS_ORIGIN` | `*`                     | 任何有效来源 | CORS来源配置                             |
 | `DEFAULT_SEARCH_ENGINE` | `bing` | 免 Key 引擎或上述可选引擎的 ID | 默认搜索引擎 |
+| `DEFAULT_SEARCH_ENGINES` | 空 | 逗号分隔的引擎名称 | 搜索请求未指定 `engines` 时使用的默认引擎组合。未同时设置 `DEFAULT_SEARCH_ENGINE` 时，首项作为单数默认引擎。不在 `ALLOWED_SEARCH_ENGINES` 内的项会被忽略。 |
 | `USE_PROXY` | `false`                 | `true`, `false` | 启用HTTP代理                             |
 | `PROXY_URL` | `http://127.0.0.1:7890` | 任何有效URL | 代理服务器URL                             |
 | `FETCH_WEB_INSECURE_TLS` | `false` | `true`, `false` | 仅对 `fetchWebContent` 的请求路径关闭 TLS 校验，不影响 Playwright 浏览器导航。只建议在证书链异常时临时使用 |

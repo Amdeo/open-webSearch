@@ -277,7 +277,7 @@ export function parseSearchArgs(argv: string[], runtime: OpenWebSearchRuntime): 
 
     const normalizedRequestedEngines = requestedEngines.length > 0
         ? requestedEngines
-        : [runtime.config.defaultSearchEngine];
+        : runtime.config.defaultSearchEngines;
     const resolvedEngines = resolveRequestedEngines(
         normalizedRequestedEngines,
         runtime.config.allowedSearchEngines,
@@ -551,6 +551,7 @@ function formatStatusHumanReadable(status: {
     baseUrl: string;
     configSummary: {
         defaultSearchEngine: string;
+        defaultSearchEngines?: string[];
         allowedSearchEngines: string[];
         searchMode: string;
         effectiveSearchMode?: string;
@@ -579,6 +580,9 @@ function formatStatusHumanReadable(status: {
         `Base URL: ${status.baseUrl}`,
         `Capabilities: ${status.capabilities.join(', ')}`,
         `Default engine: ${status.configSummary.defaultSearchEngine}`,
+        ...(status.configSummary.defaultSearchEngines?.length
+            ? [`Default engines: ${status.configSummary.defaultSearchEngines.join(', ')}`]
+            : []),
         `Allowed engines: ${status.configSummary.allowedSearchEngines.length > 0 ? status.configSummary.allowedSearchEngines.join(', ') : '(all)'}`,
         `Search mode: ${status.configSummary.searchMode}${modeLineSuffix}`,
         ...playwrightLines,
@@ -596,6 +600,7 @@ type StatusPayload = CliEnvelope<{
     baseUrl: string;
     configSummary: {
         defaultSearchEngine: string;
+        defaultSearchEngines?: string[];
         allowedSearchEngines: string[];
         searchMode: string;
         effectiveSearchMode?: string;
